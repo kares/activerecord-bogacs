@@ -13,10 +13,6 @@ module ActiveRecord
         @pool = ConnectionPool.new ActiveRecord::Base.connection_pool.spec
       end
 
-      def teardown
-        @pool.disconnect!
-      end
-
     end
   end
 end

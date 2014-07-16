@@ -13,10 +13,6 @@ module ActiveRecord
         pool.disconnect! if pool
       end
 
-      def active_connections(pool)
-        pool.connections.find_all(&:in_use?)
-      end
-
       def test_checkout_after_close
         connection = pool.connection
         assert connection.in_use?
@@ -75,10 +71,9 @@ module ActiveRecord
       end
 
       def test_full_pool_exception
+        pool.size.times { pool.checkout }
         assert_raise(ConnectionTimeoutError) do
-          (pool.size + 1).times do
-            pool.checkout
-          end
+          pool.checkout
         end
       end
 
@@ -111,7 +106,6 @@ module ActiveRecord
         pool.checkout
         pool.checkout
         pool.checkout
-        pool.dead_connection_timeout = 0
 
         connections = pool.connections.dup
 
@@ -122,25 +116,25 @@ module ActiveRecord
 
       def test_reap_inactive
         ready = Queue.new
-        @pool.checkout
+        pool.checkout
         child = Thread.new do
-          @pool.checkout
-          @pool.checkout
+          pool.checkout
+          pool.checkout
           ready.push 42
           # Thread.stop
         end
         ready.pop # awaits
 
-        assert_equal 3, active_connections(@pool).size
+        assert_equal 3, active_connections.size
 
         child.terminate
         child.join
-        @pool.reap
+        pool.reap
 
         # TODO this does not pass on built-in pool (MRI assumption) :
-        #assert_equal 1, active_connections(@pool).size
+        #assert_equal 1, active_connections.size
       ensure
-        @pool.connections.each(&:close)
+        pool.connections.each(&:close)
       end
 
       def test_remove_connection
@@ -172,13 +166,12 @@ module ActiveRecord
       end
 
       def test_checkout_behaviour
-        pool = ConnectionPool.new ActiveRecord::Base.connection_pool.spec
-        connection = pool.connection
-        assert_not_nil connection
+        assert connection = pool.connection
         threads = []
         4.times do |i|
           threads << Thread.new(i) do
-            assert connection = pool.connection
+            connection = pool.connection
+            assert_not_nil connection
             connection.close
           end
         end
@@ -204,11 +197,11 @@ module ActiveRecord
       # Thus this test prepares waiting threads and then trickles in
       # available connections slowly, ensuring the wakeup order is
       # correct in this case.
-      def _test_checkout_fairness # TODO
-        pool.instance_variable_set(:@size, 10)
-        expected = (1..pool.size).to_a.freeze
+      def test_checkout_fairness
+        @pool.instance_variable_set(:@size, 10)
+        expected = (1..@pool.size).to_a.freeze
         # check out all connections so our threads start out waiting
-        conns = expected.map { pool.checkout }
+        conns = expected.map { @pool.checkout }
         mutex = Mutex.new
         order = []
         errors = []
@@ -216,7 +209,7 @@ module ActiveRecord
         threads = expected.map do |i|
           t = Thread.new {
             begin
-              pool.checkout # never checked back in
+              @pool.checkout # never checked back in
               mutex.synchronize { order << i }
             rescue => e
               mutex.synchronize { errors << e }
@@ -227,7 +220,7 @@ module ActiveRecord
         end
 
         # this should wake up the waiting threads one by one in order
-        conns.each { |conn| pool.checkin(conn); sleep 0.1 }
+        conns.each { |conn| @pool.checkin(conn); sleep 0.1 }
 
         threads.each(&:join)
 
@@ -242,10 +235,10 @@ module ActiveRecord
       # group2. Enough connections are checked in to wakeup all
       # group1 threads, and the fact that only group1 and no group2
       # threads acquired a connection is enforced.
-      def _test_checkout_fairness_by_group # TODO
-        pool.instance_variable_set(:@size, 10)
+      def test_checkout_fairness_by_group
+        @pool.instance_variable_set(:@size, 10)
         # take all the connections
-        conns = (1..10).map { pool.checkout }
+        conns = (1..10).map { @pool.checkout }
         mutex = Mutex.new
         successes = [] # threads that successfully got a connection
         errors = []
@@ -253,7 +246,7 @@ module ActiveRecord
         make_thread = proc do |i|
           t = Thread.new {
             begin
-              pool.checkout # never checked back in
+              @pool.checkout # never checked back in
               mutex.synchronize { successes << i }
             rescue => e
               mutex.synchronize { errors << e }
@@ -271,7 +264,7 @@ module ActiveRecord
         checkin = proc do |n|
           n.times do
             c = conns.pop
-            pool.checkin(c)
+            @pool.checkin(c)
           end
         end
 
@@ -296,7 +289,6 @@ module ActiveRecord
       end
 
       def test_automatic_reconnect=
-        pool = ConnectionPool.new ActiveRecord::Base.connection_pool.spec
         assert pool.automatic_reconnect
         assert pool.connection
 
@@ -333,7 +325,7 @@ module ActiveRecord
 
       private
 
-      def active_connections(pool)
+      def active_connections(pool = self.pool)
         pool.connections.find_all(&:in_use?)
       end
 
