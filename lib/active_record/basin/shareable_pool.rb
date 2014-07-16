@@ -105,23 +105,23 @@ module ActiveRecord
           # if there's a 'regular' connection on the thread use it as super
           if super_active_connection?(connection_id) # for current thread
             connection = self.connection # do not mark as shared
-            debug "with_shared_conn 10 got active = #{connection.to_s}"
+            DEBUG && debug("with_shared_conn 10 got active = #{connection.to_s}")
           # otherwise if we have a shared connection - use that one :
           elsif connection = get_shared_connection
             emulated_checkout(connection); shared = true
-            debug "with_shared_conn 20 got shared = #{connection.to_s}"
+            DEBUG && debug("with_shared_conn 20 got shared = #{connection.to_s}")
           else
             cheap_synchronize do
               # check shared again as/if threads end up sync-ing up here :
               if connection = get_shared_connection
                 emulated_checkout(connection)
-                debug "with_shared_conn 21 got shared = #{connection.to_s}"
+                DEBUG && debug("with_shared_conn 21 got shared = #{connection.to_s}")
               end # here we acquire but a connection from the pool
               # TODO the bottle-neck for concurrency doing sync { checkout } :
               unless connection # here we acquire a connection from the pool
                 connection = self.checkout # might block if pool fully used
                 add_shared_connection(connection)
-                debug "with_shared_conn 30 acq shared = #{connection.to_s}"
+                DEBUG && debug("with_shared_conn 30 acq shared = #{connection.to_s}")
               end
             end
             shared = true
@@ -129,7 +129,7 @@ module ActiveRecord
 
           Thread.current[:shared_pool_connection] = connection if shared
 
-          debug "with_shared_conn obtaining a connection took #{(Time.now - start) * 1000}ms" if DEBUG
+          DEBUG && debug("with_shared_conn obtaining a connection took #{(Time.now - start) * 1000}ms")
           yield connection
         ensure
           Thread.current[:shared_pool_connection] = nil # if shared
@@ -159,7 +159,7 @@ module ActiveRecord
         @shared_connections.each_pair do |connection, shared_count|
           next if shared_count.get >= MAX_THREAD_SHARING
           if ( shared_count = shared_count.get ) < least_count
-            debug " get_shared_conn loop : #{connection.to_s} shared #{shared_count}-time(s)"
+            DEBUG && debug(" get_shared_conn loop : #{connection.to_s} shared #{shared_count}-time(s)")
             # ! DO NOT return connection if shared_count == 0
             least_count = shared_count; least_shared = connection
           end
@@ -167,11 +167,11 @@ module ActiveRecord
 
         if least_count > 0
           if shared_connections_size < @shared_connections.size
-            debug " get_shared_conn retry (shared connection added)"
+            DEBUG && debug(" get_shared_conn retry (shared connection added)")
             return get_shared_connection # someone else added something re-try
           end
           if ( @shared_connections.size < @shared_size ) && acquire_connection_no_wait?
-            debug " get_shared_conn return none - acquire from pool"
+            DEBUG && debug(" get_shared_conn return none - acquire from pool")
             return nil # we should rather 'get' a new shared one from the pool
           end
         end
@@ -180,13 +180,13 @@ module ActiveRecord
         cheap_synchronize do # TODO although this likely might be avoided ...
           # should try again if possibly the same connection got released :
           unless least_count = @shared_connections[least_shared]
-            debug " get_shared_conn retry (connection got released)"
+            DEBUG && debug(" get_shared_conn retry (connection got released)")
             return get_shared_connection
           end
           least_count.update { |v| v + 1 }
         end if least_shared
 
-        debug " get_shared_conn least shared = #{least_shared.to_s}"
+        DEBUG && debug(" get_shared_conn least shared = #{least_shared.to_s}")
         least_shared # might be nil in that case we'll likely wait (as super)
       end
 
@@ -229,17 +229,9 @@ module ActiveRecord
         end
       end
 
-      DEBUG ? def debug(msg); end : def debug(msg); DEBUG.debug msg end
+      private
 
-      #module ModelMethods
-      #
-      #  def with_shared_connection(&block)
-      #    connection_pool.with_shared_connection(&block)
-      #  end
-      #
-      #end
-      #
-      #Base.extend ModelMethods # ActiveRecord::Base.with_shared_connection { ... }
+      def debug(msg); DEBUG.debug msg end
 
     end
   end
