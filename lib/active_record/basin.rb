@@ -6,7 +6,9 @@ require 'active_record/connection_adapters/abstract/connection_pool'
 module ActiveRecord
   module Basin
     #autoload :FalsePool, 'active_record/basin/false_pool'
+    autoload :ShareablePool, 'active_record/basin/shareable_pool'
   end
+  autoload :SharedConnection, 'active_record/shared_connection'
 end
 
 # NOTE: needs explicit configuration - before connection gets established e.g.
