@@ -1,7 +1,7 @@
 require 'bundler/setup'
 
 # ENV variables supported :
-# - AR_POOL=42 for testing out with higher pools
+# - AR_POOL_SIZE=42 for testing out with higher pools
 # - AR_POOL_CHECKOUT_TIMEOUT=2 for changing the pool connection acquire timeout
 # - AR_POOL_PREFILL=10 how many connections to "prefill" the pool with on start
 # - AR_POOL_SHARED=true/false or size/percentage (0.0-1.0) connection sharing
@@ -10,8 +10,9 @@ require 'bundler/setup'
 connect_timeout = 5
 checkout_timeout = 2.5 # default is to wait 5 seconds when all connections used
 pool_size = 10
-pool_prefill = 10 # (or simply true/false) how many connections to initialize
+#pool_prefill = 10 # (or simply true/false) how many connections to initialize
 shared_pool = 0.75 # shareable pool true/false or size (integer or percentage)
+ENV['DB_POOL_SHARED'] ||= 0.5.to_s
 
 # NOTE: max concurrent threads handled before explicit locking with shared :
 #   pool_size - ( pool_size * shared_pool ) * MAX_THREAD_SHARING (5)
@@ -42,8 +43,8 @@ else
   config[:'database'] = ENV['AR_DATABASE'] || 'ar_basin'
 end
 
-config[:'pool'] = ENV['AR_POOL'] ? ENV['AR_POOL'].to_i : pool_size
-config[:'shared_pool'] = shared_pool if shared_pool
+config[:'pool'] = ENV['AR_POOL_SIZE'] ? ENV['AR_POOL_SIZE'].to_i : pool_size
+config[:'shared_pool'] = ENV['AR_POOL_SHARED'] || shared_pool
 config[:'connect_timeout'] = connect_timeout
 prepared_statements = ENV['AR_PREPARED_STATEMENTS'] # || true
 config[:'prepared_statements'] = prepared_statements if prepared_statements
@@ -51,7 +52,7 @@ config[:'prepared_statements'] = prepared_statements if prepared_statements
 #config['properties'] = jdbc_properties
 
 checkout_timeout = ENV['AR_POOL_CHECKOUT_TIMEOUT'] || checkout_timeout
-config[:'checkout_timeout'] = checkout_timeout.to_i if checkout_timeout
+config[:'checkout_timeout'] = checkout_timeout.to_f if checkout_timeout
 
 AR_CONFIG = config
 
@@ -94,6 +95,11 @@ $LOAD_PATH << File.expand_path(File.dirname(__FILE__))
 
 module ActiveRecord
   module ConnectionAdapters
+    ConnectionPool.class_eval do
+      attr_reader :available # the custom Queue
+      attr_reader :reserved_connections # Thread-Cache
+      # attr_reader :connections # created connections
+    end
     autoload :ConnectionPoolTestMethods, 'active_record/connection_pool_test_methods'
   end
 end

@@ -1,20 +1,8 @@
 
-ENV['DB_POOL'] = 10.to_s
-ENV['DB_POOL_SHARED'] = 0.5.to_s
-
 require File.expand_path('../../test_helper', File.dirname(__FILE__))
 
-require 'active_record/basin/shareable_pool'
-
-module ActiveRecord
-  ConnectionAdapters::ConnectionPool.class_eval do
-    attr_reader :available # the custom Queue
-    attr_reader :reserved_connections # Thread-Cache
-    # attr_reader :connections # created connections
-  end
-  Basin::ShareablePool.class_eval do
-    attr_reader :shared_connections
-  end
+ActiveRecord::Basin::ShareablePool.class_eval do
+  attr_reader :shared_connections
 end
 
 module ActiveRecord
