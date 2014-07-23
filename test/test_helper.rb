@@ -103,3 +103,142 @@ module ActiveRecord
     autoload :ConnectionPoolTestMethods, 'active_record/connection_pool_test_methods'
   end
 end
+
+module ActiveRecord
+  module Basin
+
+    module TestHelper
+
+      def with_connection(config)
+        ActiveRecord::Base.establish_connection config
+        yield ActiveRecord::Base.connection
+      ensure
+        ActiveRecord::Base.connection.disconnect!
+      end
+
+      def with_connection_removed
+        connection = ActiveRecord::Base.remove_connection
+        begin
+          yield
+        ensure
+          ActiveRecord::Base.establish_connection connection
+        end
+      end
+
+#      def with_connection_removed
+#        configurations = ActiveRecord::Base.configurations
+#        connection_config = current_connection_config
+#        # ActiveRecord::Base.connection.disconnect!
+#        ActiveRecord::Base.remove_connection
+#        begin
+#          yield connection_config.dup
+#        ensure
+#          # ActiveRecord::Base.connection.disconnect!
+#          ActiveRecord::Base.remove_connection
+#          ActiveRecord::Base.configurations = configurations
+#          ActiveRecord::Base.establish_connection connection_config
+#        end
+#      end
+
+      module_function
+
+      def current_connection_config
+        if ActiveRecord::Base.respond_to?(:connection_config)
+          ActiveRecord::Base.connection_config
+        else
+          ActiveRecord::Base.connection_pool.spec.config
+        end
+      end
+
+      def silence_deprecations(&block)
+        ActiveSupport::Deprecation.silence(&block)
+      end
+
+#      def disable_logger(connection, &block)
+#        raise "need a block" unless block_given?
+#        return disable_connection_logger(connection, &block) if connection
+#        logger = ActiveRecord::Base.logger
+#        begin
+#          ActiveRecord::Base.logger = nil
+#          yield
+#        ensure
+#          ActiveRecord::Base.logger = logger
+#        end
+#      end
+#
+#      def disable_connection_logger(connection)
+#        logger = connection.send(:instance_variable_get, :@logger)
+#        begin
+#          connection.send(:instance_variable_set, :@logger, nil)
+#          yield
+#        ensure
+#          connection.send(:instance_variable_set, :@logger, logger)
+#        end
+#      end
+
+    end
+
+    module JndiTestHelper
+
+      def setup_jdbc_context
+        load 'test/jars/tomcat-juli.jar'
+        load 'test/jars/tomcat-catalina.jar'
+
+        java.lang.System.set_property(
+            javax.naming.Context::INITIAL_CONTEXT_FACTORY,
+            'org.apache.naming.java.javaURLContextFactory'
+        )
+        java.lang.System.set_property(
+            javax.naming.Context::URL_PKG_PREFIXES,
+            'org.apache.naming'
+        )
+
+        init_context = javax.naming.InitialContext.new
+        begin
+          init_context.create_subcontext 'jdbc'
+        rescue javax.naming.NameAlreadyBoundException
+        end
+      end
+
+      def init_tomcat_jdbc_data_source(ar_jdbc_config = AR_CONFIG)
+        load 'test/jars/tomcat-jdbc.jar'
+
+        unless driver = ar_jdbc_config[:driver]
+          jdbc_driver_module.load_driver
+          driver = jdbc_driver_module.driver_name
+        end
+
+        data_source = org.apache.tomcat.jdbc.pool.DataSource.new
+        data_source.setDriverClassName driver
+        data_source.setUrl ar_jdbc_config[:url]
+        data_source.setUsername ar_jdbc_config[:username] if ar_jdbc_config[:username]
+        data_source.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
+
+        data_source
+      end
+
+      def bind_data_source(data_source, jndi_name = jndi_config[:jndi])
+        load_driver
+        javax.naming.InitialContext.new.bind jndi_name, data_source
+      end
+
+      def load_driver
+        jdbc_driver_module.load_driver
+      end
+
+      def jdbc_driver_module
+        driver = jndi_config[:adapter]
+        driver = 'postgres' if driver == 'postgresql'
+        require "jdbc/#{driver}"
+        ::Jdbc.const_get ::Jdbc.constants.first
+      end
+
+      def jndi_config
+        @jndi_config ||= { :adapter => AR_CONFIG[:adapter], :jndi => jndi_name }
+      end
+
+      def jndi_name; 'jdbc/TestDB' end
+
+    end
+  end
+end
