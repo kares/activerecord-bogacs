@@ -70,3 +70,49 @@ def _which(cmd)
   end
   nil
 end
+
+
+['tomcat-jdbc', 'tomcat-dbcp'].each do |tomcat_pool|
+
+  namespace tomcat_pool do
+
+    TOMCAT_MAVEN_REPO = 'http://repo2.maven.org/maven2/org/apache/tomcat'
+    DOWNLOAD_DIR = File.expand_path('test/jars', File.dirname(__FILE__))
+
+    tomcat_pool_jar = "#{tomcat_pool}.jar"
+
+    task :download, :version do |_, args| # rake tomcat-jdbc:download[7.0.54]
+      version = args[:version]
+
+      uri = "#{TOMCAT_MAVEN_REPO}/#{tomcat_pool}/#{version}/#{tomcat_pool}-#{version}.jar"
+
+      require 'open-uri'; require 'tmpdir'
+
+      temp_dir = File.join(Dir.tmpdir, (Time.now.to_f * 1000).to_i.to_s)
+      FileUtils.mkdir temp_dir
+
+      Dir.chdir(temp_dir) do
+        FileUtils.mkdir DOWNLOAD_DIR unless File.exist?(DOWNLOAD_DIR)
+        puts "downloading #{uri}"
+        file = open(uri)
+        FileUtils.cp file.path, File.join(DOWNLOAD_DIR, tomcat_pool_jar)
+      end
+
+      FileUtils.rm_r temp_dir
+    end
+
+    task :check do
+      jar_path = File.join(DOWNLOAD_DIR, tomcat_pool_jar)
+      unless File.exist?(jar_path)
+        Rake::Task["#{tomcat_pool}:download"].invoke
+      end
+    end
+
+    task :clear do
+      jar_path = File.join(DOWNLOAD_DIR, tomcat_pool_jar)
+      rm jar_path if File.exist?(jar_path)
+    end
+
+  end
+
+end
