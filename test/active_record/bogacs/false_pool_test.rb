@@ -47,10 +47,14 @@ module ActiveRecord
           @@data_source = init_tomcat_jdbc_data_source(config)
         end
 
-#        include ConnectionAdapters::ConnectionPoolTestMethods
+        include ConnectionAdapters::ConnectionPoolTestMethods
 
         def setup
           @pool = FalsePool.new ActiveRecord::Base.connection_pool.spec
+        end
+
+        def teardown
+          @@data_source.send(:close, true) if @@data_source
         end
 
         def test_uses_false_pool_and_can_execute_query
@@ -60,27 +64,61 @@ module ActiveRecord
 
         # adjust ConnectionAdapters::ConnectionPoolTestMethods :
 
-#        undef :test_checkout_fairness
-#        undef :test_checkout_fairness_by_group
-#
-#        undef :test_released_connection_moves_between_threads
-#
-#        undef :test_reap_inactive
-#
-#        undef :test_automatic_reconnect= # or does automatic_reconnect make sense?
-#
-#        # @override
-#        def test_remove_connection
-#          conn = pool.checkout
-#          assert conn.in_use?
-#
-#          #length = pool.connections.size
-#          pool.remove conn
-#          assert conn.in_use?
-#          #assert_equal(length - 1, pool.connections.length)
-#        ensure
-#          conn.close if conn
-#        end
+        undef :test_checkout_fairness
+        undef :test_checkout_fairness_by_group
+
+        undef :test_released_connection_moves_between_threads
+
+        undef :test_reap_inactive
+
+        undef :test_automatic_reconnect= # or does automatic_reconnect make sense?
+
+        undef :test_removing_releases_latch
+
+        # @override
+        def test_remove_connection
+          conn = pool.checkout
+          assert conn.in_use?
+
+          #length = pool.connections.size
+          pool.remove conn
+          assert conn.in_use?
+          #assert_equal(length - 1, pool.connections.length)
+        ensure
+          conn.close if conn
+        end
+
+        # @override
+        def test_full_pool_exception
+          # ~ pool_size.times { pool.checkout }
+          threads_ready = Queue.new; threads_block = Atomic.new(0); threads = []
+          pool_size.times do |i|
+            threads << Thread.new do
+              begin
+                conn = ActiveRecord::Base.connection
+                threads_block.update { |v| v + 1 }
+                threads_ready << i
+                while threads_block.value != -1 # await
+                  sleep(0.005)
+                end
+              rescue => e
+                puts "block thread failed: #{e.inspect}"
+              ensure
+                conn && conn.close
+              end
+            end
+          end
+          pool_size.times { threads_ready.pop } # awaits
+
+          assert_raise(ConnectionTimeoutError) do
+            ActiveRecord::Base.connection # ~ pool.checkout
+          end
+
+        ensure
+          #connection && connection.close
+          threads_block && threads_block.swap(-1)
+          threads && threads.each(&:join)
+        end
 
         # @override
         def test_full_pool_blocks
