@@ -13,30 +13,20 @@ module ActiveRecord
         @connected = nil
 
         @spec = spec
-
-        #@checkout_timeout = spec.config[:checkout_timeout] || 5
-        #@reaper  = Reaper.new self, spec.config[:reaping_frequency]
-        #@reaper.run
-
         @size = nil
-        #@size = (spec.config[:pool] && spec.config[:pool].to_i) || 5
+        #@automatic_reconnect = true
 
-        # The cache of reserved connections mapped to threads
         @reserved_connections = ThreadSafe::Cache.new #:initial_capacity => @size
-
-        #@connections         = []
-        @automatic_reconnect = true
-
-        #@available = Queue.new self
       end
 
       # @private replacement for attr_reader :connections
       def connections; @reserved_connections.values end
 
       # @private attr_reader :reaper
-      def reaper; nil end
+      def reaper; end
 
-      def checkout_timeout; nil end
+      # @private
+      def checkout_timeout; end
 
       # Retrieve the connection associated with the current thread, or call
       # #checkout to obtain one if necessary.
@@ -73,10 +63,7 @@ module ActiveRecord
       end
 
       # Returns true if a connection has already been opened.
-      def connected?
-        @connected
-        #synchronize { @connections.any? }
-      end
+      def connected?; @connected end
 
       # Disconnects all connections in the pool, and clears the pool.
       def disconnect!
@@ -144,11 +131,12 @@ module ActiveRecord
       # Raises:
       # - ConnectionTimeoutError: no connection can be obtained from the pool.
       def checkout
-        synchronize do
-          conn = acquire_connection
+        #synchronize do
+          conn = checkout_new_connection # acquire_connection
           conn.lease
-          checkout_and_verify(conn)
-        end
+          conn.run_callbacks(:checkout) { conn.verify! } # checkout_and_verify(conn)
+          conn
+        #end
       end
 
       # Check-in a database connection back into the pool, indicating that you
@@ -157,13 +145,12 @@ module ActiveRecord
       # +conn+: an AbstractAdapter object, which was obtained by earlier by
       # calling +checkout+ on this pool.
       def checkin(conn)
-        synchronize do
-          conn.run_callbacks :checkin do
-            conn.expire
-          end
-          release conn
+        release conn
+        #synchronize do
+          conn.run_callbacks(:checkin) { conn.expire }
+          #release conn
           #@available.add conn
-        end
+        #end
       end
 
       # Remove a connection from the connection pool.  The connection will
@@ -179,26 +166,9 @@ module ActiveRecord
         #end
       end
 
-      # Recover lost connections for the pool.  A lost connection can occur if
-      # a programmer forgets to checkin a connection at the end of a thread
-      # or a thread dies unexpectedly.
+      # @private
       def reap
-        #stale_connections = synchronize do
-          #@connections.select do |conn|
-            #conn.in_use? && !conn.owner.alive?
-          #end
-        #end
-        #
-        #stale_connections.each do |conn|
-          #synchronize do
-            #if conn.active?
-              #conn.reset!
-              #checkin conn
-            #else
-              #remove conn
-            #end
-          #end
-        #end
+        # we do not really manage the connection pool - nothing to do ...
       end
 
       private
@@ -211,6 +181,7 @@ module ActiveRecord
       # Raises:
       # - ConnectionTimeoutError if a connection could not be acquired
       def acquire_connection
+        # underlying pool will poll and block if "empty" (all checked-out)
         #if conn = @available.poll
           #conn
         #elsif @connections.size < @size
@@ -245,42 +216,20 @@ module ActiveRecord
       end
 
       def checkout_new_connection
+        # NOTE: automatic reconnect seems to make no sense for us!
         #raise ConnectionNotEstablished unless @automatic_reconnect
 
         conn = new_connection
         conn.pool = self
-        @connected = true
-        #@connections << conn
+        synchronize { @connected = true } if @connected != true
         conn
       end
 
-      def checkout_and_verify(conn)
-        conn.run_callbacks :checkout do
-          conn.verify!
-        end
-        conn
-      end
+      #def checkout_and_verify(conn)
+      #  conn.run_callbacks(:checkout) { conn.verify! }
+      #  conn
+      #end
+
     end
-
-#    class ConnectionManagement
-#      def initialize(app)
-#        @app = app
-#      end
-#
-#      def call(env)
-#        testing = env.key?('rack.test')
-#
-#        response = @app.call(env)
-#        response[2] = ::Rack::BodyProxy.new(response[2]) do
-#          ActiveRecord::Base.clear_active_connections! unless testing
-#        end
-#
-#        response
-#      rescue Exception
-#        ActiveRecord::Base.clear_active_connections! unless testing
-#        raise
-#      end
-#    end
-
   end
 end
