@@ -1,17 +1,17 @@
 # coding: utf-8
 
 Gem::Specification.new do |gem|
-  gem.name = 'activerecord-basin'
+  gem.name = 'activerecord-bogacs'
 
-  path = File.expand_path('lib/active_record/basin/version.rb', File.dirname(__FILE__))
+  path = File.expand_path('lib/active_record/bogacs/version.rb', File.dirname(__FILE__))
   gem.version = File.read(path).match( /.*VERSION\s*=\s*['"](.*)['"]/m )[1]
 
   gem.authors = ['Karol Bucek']
   gem.email = ['self@kares.org']
-  gem.description = %q{a ActiveRecord::ConnectionAdapters::ConnectionPool v8}
-  gem.summary = %q{An open, shallow, usually round container used especially for holding liquids ... for ActiveRecord.}
-  gem.homepage = "http://github.com/kares/activerecord-basin"
-  gem.licenses = ['MIT']
+  gem.description = %q{(experimental) alternatives for ActiveRecord::ConnectionAdapters::ConnectionPool}
+  gem.summary = %q{A small body of still water, usually fresh ... for ActiveRecord!}
+  gem.homepage = "http://github.com/kares/activerecord-bogacs"
+  #gem.licenses = ['MIT']
 
   gem.files = `git ls-files`.split($/)
   gem.executables = gem.files.grep(%r{^bin/}) { |f| File.basename(f) }

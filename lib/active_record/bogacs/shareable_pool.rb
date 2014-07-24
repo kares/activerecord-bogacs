@@ -9,7 +9,7 @@ require 'atomic'
 #   ActiveRecord::ConnectionAdapters::ConnectionHandler.connection_pool_class = pool_class
 #
 module ActiveRecord
-  module Basin
+  module Bogacs
     class ShareablePool < ConnectionAdapters::ConnectionPool
       include ThreadSafe::Util::CheapLockable
 

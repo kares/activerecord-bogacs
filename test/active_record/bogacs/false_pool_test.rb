@@ -1,16 +1,16 @@
 require File.expand_path('../../test_helper', File.dirname(__FILE__))
 
-ActiveRecord::Basin::FalsePool.class_eval do
+ActiveRecord::Bogacs::FalsePool.class_eval do
   # ...
 end
 
 module ActiveRecord
-  module Basin
+  module Bogacs
     class FalsePool
 
       class TestBase < ::Test::Unit::TestCase
-        # extend Basin::TestHelper
-        extend Basin::JndiTestHelper
+        # extend Bogacs::TestHelper
+        extend Bogacs::JndiTestHelper
 
         def self.startup
           return if self == TestBase
@@ -18,7 +18,7 @@ module ActiveRecord
           ActiveRecord::Base.establish_connection AR_CONFIG
 
           ActiveRecord::Base.connection.jdbc_connection # force connection
-          current_config = Basin::TestHelper.current_connection_config
+          current_config = Bogacs::TestHelper.current_connection_config
 
           ActiveRecord::Base.connection_pool.disconnect!
 
@@ -54,7 +54,7 @@ module ActiveRecord
         end
 
         def test_uses_false_pool_and_can_execute_query
-          assert_instance_of ActiveRecord::Basin::FalsePool, ActiveRecord::Base.connection_pool
+          assert_instance_of ActiveRecord::Bogacs::FalsePool, ActiveRecord::Base.connection_pool
           assert ActiveRecord::Base.connection.exec_query('SELECT 42')
         end
 

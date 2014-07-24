@@ -1,7 +1,7 @@
 require File.expand_path('../shareable_pool_helper', File.dirname(__FILE__))
 
 module ActiveRecord
-  module Basin
+  module Bogacs
     class ShareablePool
 
       class ConnectionSharingTest < TestBase

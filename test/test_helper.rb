@@ -89,7 +89,7 @@ end
 #  pool.extend ActiveRecord::ConnectionAdapters::PoolBenchmark
 #end
 
-require 'active_record/basin'
+require 'active_record/bogacs'
 
 $LOAD_PATH << File.expand_path(File.dirname(__FILE__))
 
@@ -105,7 +105,7 @@ module ActiveRecord
 end
 
 module ActiveRecord
-  module Basin
+  module Bogacs
 
     module TestHelper
 
@@ -213,8 +213,6 @@ module ActiveRecord
         data_source.setUrl ar_jdbc_config[:url]
         data_source.setUsername ar_jdbc_config[:username] if ar_jdbc_config[:username]
         data_source.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
-
-        data_source
       end
 
       def bind_data_source(data_source, jndi_name = jndi_config[:jndi])

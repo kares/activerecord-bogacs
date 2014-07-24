@@ -1,12 +1,12 @@
 
 require File.expand_path('../../test_helper', File.dirname(__FILE__))
 
-ActiveRecord::Basin::ShareablePool.class_eval do
+ActiveRecord::Bogacs::ShareablePool.class_eval do
   attr_reader :shared_connections
 end
 
 module ActiveRecord
-  module Basin
+  module Bogacs
     class ShareablePool
 
       module TestHelpers

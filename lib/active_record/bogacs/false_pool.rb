@@ -1,5 +1,5 @@
 module ActiveRecord
-  module Basin
+  module Bogacs
     class FalsePool
 
       include ThreadSafe::Util::CheapLockable

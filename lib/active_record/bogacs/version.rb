@@ -1,5 +1,5 @@
 module ActiveRecord
-  module Basin
+  module Bogacs
     VERSION = '0.1.0'
   end
 end
