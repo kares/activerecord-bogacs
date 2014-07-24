@@ -56,6 +56,11 @@ config[:'checkout_timeout'] = checkout_timeout.to_f if checkout_timeout
 
 AR_CONFIG = config
 
+pool_prefill = ENV['AR_POOL_PREFILL']
+pool_prefill = config[:'pool'] if pool_prefill.to_s == 'true'
+pool_prefill = 0 if pool_prefill.to_s == 'false'
+config[:'pool_prefill'] = pool_prefill.to_i if pool_prefill # NOTE: not yet used
+
 unless ENV['Rake'] == 'true'
   gem 'test-unit'
   require 'test/unit'
@@ -63,11 +68,6 @@ unless ENV['Rake'] == 'true'
   ActiveRecord::Base.logger.debug "database configuration: #{config.inspect}"
 end
 
-#pool = ActiveRecord::Base.connection_pool
-#pool_prefill = ENV['AR_POOL_PREFILL']
-#pool_prefill = pool.size if pool_prefill.to_s == 'true'
-#pool_prefill = 0 if pool_prefill.to_s == 'false'
-#
 #if ( pool_prefill = ( pool_prefill || 10 ).to_i ) > 0
 #  pool_prefill = pool.size if pool_prefill > pool.size
 #
@@ -203,17 +203,48 @@ module ActiveRecord
       def init_tomcat_jdbc_data_source(ar_jdbc_config = AR_CONFIG)
         load 'test/jars/tomcat-jdbc.jar'
 
+        data_source = org.apache.tomcat.jdbc.pool.DataSource.new
+        configure_dbcp_data_source_attributes(data_source, ar_jdbc_config)
+
+        data_source.setJmxEnabled false
+
+        data_source
+      end
+
+      def configure_dbcp_data_source_attributes(data_source, ar_jdbc_config)
         unless driver = ar_jdbc_config[:driver]
           jdbc_driver_module.load_driver
           driver = jdbc_driver_module.driver_name
         end
 
-        data_source = org.apache.tomcat.jdbc.pool.DataSource.new
         data_source.setDriverClassName driver
         data_source.setUrl ar_jdbc_config[:url]
         data_source.setUsername ar_jdbc_config[:username] if ar_jdbc_config[:username]
         data_source.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
+        if ar_jdbc_config[:properties]
+          properties = java.util.Properties.new
+          properties.putAll ar_jdbc_config[:properties]
+          data_source.setDbProperties properties
+        end
+        # JDBC pool tunings (some mapped from AR configuration) :
+        if ar_jdbc_config[:pool] # default is 100
+          data_source.setMaxActive ar_jdbc_config[:pool]
+          if prefill = ar_jdbc_config[:pool_prefill]
+            data_source.setInitialSize prefill
+          end
+          if data_source.max_active < data_source.max_idle
+            data_source.setMaxIdle data_source.max_active
+          end
+        end
+        max_wait = ar_jdbc_config[:checkout_timeout] || 5
+        data_source.setMaxWait max_wait * 1000 # default is 30s
+
+        data_source.setTestWhileIdle false # default
+
+        data_source.setRemoveAbandoned false
+        data_source.setLogAbandoned true
       end
+      private :configure_dbcp_data_source_attributes
 
       def bind_data_source(data_source, jndi_name = jndi_config[:jndi])
         load_driver
