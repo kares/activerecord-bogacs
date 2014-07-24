@@ -241,8 +241,8 @@ module ActiveRecord
 
         data_source.setTestWhileIdle false # default
 
-        data_source.setRemoveAbandoned false
-        data_source.setLogAbandoned true
+        #data_source.setRemoveAbandoned false
+        #data_source.setLogAbandoned true
       end
       private :configure_dbcp_data_source_attributes
 
