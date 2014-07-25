@@ -109,6 +109,11 @@ module ActiveRecord
 
     module TestHelper
 
+      def _test_name
+        @method_name # @__name__ on mini-test
+      end
+      private :_test_name
+
       def with_connection(config)
         ActiveRecord::Base.establish_connection config
         yield ActiveRecord::Base.connection
