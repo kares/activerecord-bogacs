@@ -1,6 +1,11 @@
+require 'thread_safe'
+require 'active_record/bogacs/pool_support'
+
 module ActiveRecord
   module Bogacs
     class FalsePool
+
+      include PoolSupport
 
       include ThreadSafe::Util::CheapLockable
       alias_method :synchronize, :cheap_synchronize
@@ -77,14 +82,6 @@ module ActiveRecord
             checkin conn
             conn.disconnect!
           end
-
-          #@reserved_connections.clear
-          #@connections.each do |conn|
-            #checkin conn
-            #conn.disconnect!
-          #end
-          #@connections = []
-          #@available.clear
         end
       end
 
@@ -100,19 +97,6 @@ module ActiveRecord
             checkin conn
             conn.disconnect! if conn.requires_reloading?
           end
-
-          #@reserved_connections.clear
-          #@connections.each do |conn|
-            #checkin conn
-            #conn.disconnect! if conn.requires_reloading?
-          #end
-          #@connections.delete_if do |conn|
-            #conn.requires_reloading?
-          #end
-          #@available.clear
-          #@connections.each do |conn|
-            #@available.add conn
-          #end
         end
       end
 
@@ -156,14 +140,7 @@ module ActiveRecord
       # Remove a connection from the connection pool.  The connection will
       # remain open and active but will no longer be managed by this pool.
       def remove(conn)
-        #synchronize do
-          #@connections.delete conn
-          #@available.delete conn
-
-          release conn
-
-          #@available.add checkout_new_connection if @available.any_waiting?
-        #end
+        release conn
       end
 
       # @private
@@ -207,14 +184,6 @@ module ActiveRecord
         @reserved_connections.delete thread_id if thread_id
       end
 
-      def new_connection
-        Base.send(spec.adapter_method, spec.config)
-      end
-
-      def current_connection_id
-        Base.connection_id ||= Thread.current.object_id # TODO
-      end
-
       def checkout_new_connection
         # NOTE: automatic reconnect seems to make no sense for us!
         #raise ConnectionNotEstablished unless @automatic_reconnect
@@ -224,7 +193,7 @@ module ActiveRecord
         rescue ConnectionTimeoutError => e
           raise e
         rescue => e
-          raise ConnectionTimeoutError, e if _timeout_error?(e)
+          raise ConnectionTimeoutError, e.message if _timeout_error?(e)
           raise e
         end
         conn.pool = self
