@@ -1,6 +1,7 @@
 require 'active_record/bogacs/version'
 
 require 'active_record'
+require 'active_record/version'
 require 'active_record/connection_adapters/abstract/connection_pool'
 
 module ActiveRecord
@@ -26,9 +27,20 @@ module ActiveRecord
       def connection_pool_class; @@connection_pool_class end
       def self.connection_pool_class=(klass); @@connection_pool_class = klass end
 
-      def establish_connection(owner, spec)
-        @class_to_pool.clear
-        owner_to_pool[owner.name] = connection_pool_class.new(spec)
+      if ActiveRecord::VERSION::MAJOR > 3
+
+        def establish_connection(owner, spec)
+          @class_to_pool.clear
+          owner_to_pool[owner.name] = connection_pool_class.new(spec)
+        end
+
+      else # based on 3.2
+
+        def establish_connection(name, spec)
+          @class_to_pool[name] =
+            ( @connection_pools[spec] ||= connection_pool_class.new(spec) )
+        end
+
       end
 
     end
