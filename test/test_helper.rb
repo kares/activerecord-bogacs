@@ -96,6 +96,7 @@ $LOAD_PATH << File.expand_path(File.dirname(__FILE__))
 module ActiveRecord
   module ConnectionAdapters
     ConnectionPool.class_eval do
+      attr_reader :size # only since 4.x
       attr_reader :available # the custom Queue
       attr_reader :reserved_connections # Thread-Cache
       # attr_reader :connections # created connections
