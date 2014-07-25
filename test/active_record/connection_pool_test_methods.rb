@@ -1,4 +1,4 @@
-# NOTE: based on connection pool test
+# NOTE: based on connection pool test (from AR's test suite)
 module ActiveRecord
   module ConnectionAdapters
     module ConnectionPoolTestMethods
@@ -18,9 +18,9 @@ module ActiveRecord
         assert connection.in_use?
 
         connection.close
-        assert !connection.in_use?
+        assert_false connection.in_use?
 
-        assert pool.connection.in_use?
+        assert_true pool.connection.in_use?
       end
 
       def test_released_connection_moves_between_threads
@@ -215,7 +215,8 @@ module ActiveRecord
               mutex.synchronize { errors << e }
             end
           }
-          Thread.pass until t.status == "sleep"
+          sleep(0.01) # "tuning" for JRuby
+          Thread.pass until t.status == 'sleep'
           t
         end
 
@@ -252,12 +253,14 @@ module ActiveRecord
               mutex.synchronize { errors << e }
             end
           }
-          Thread.pass until t.status == "sleep"
+          sleep(0.01) # "tuning" for JRuby
+          Thread.pass until t.status == 'sleep'
           t
         end
 
         # all group1 threads start waiting before any in group2
         group1 = (1..5).map(&make_thread)
+        sleep(0.05) # "tuning" for JRuby
         group2 = (6..10).map(&make_thread)
 
         # checkin n connections back to the pool
@@ -278,10 +281,9 @@ module ActiveRecord
         winners = mutex.synchronize { successes.dup }
         checkin.call(group2.size) # should wake up everyone remaining
 
-        group1.each(&:join)
-        group2.each(&:join)
+        group1.each(&:join); group2.each(&:join)
 
-        assert_equal((1..group1.size).to_a, winners.sort)
+        assert_equal (1..group1.size).to_a, winners.sort
 
         if errors.any?
           raise errors.first
