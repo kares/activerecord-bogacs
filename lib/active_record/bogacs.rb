@@ -27,18 +27,24 @@ module ActiveRecord
       def connection_pool_class; @@connection_pool_class end
       def self.connection_pool_class=(klass); @@connection_pool_class = klass end
 
-      if ActiveRecord::VERSION::MAJOR > 3
+      if ActiveRecord::VERSION::MAJOR > 3 # 4.x
 
         def establish_connection(owner, spec)
           @class_to_pool.clear
           owner_to_pool[owner.name] = connection_pool_class.new(spec)
         end
 
-      else # based on 3.2
+      elsif ActiveRecord::VERSION::MAJOR == 3 && ActiveRecord::VERSION::MINOR == 2
 
         def establish_connection(name, spec)
           @class_to_pool[name] =
             ( @connection_pools[spec] ||= connection_pool_class.new(spec) )
+        end
+
+      else # 2.3/3.0/3.1
+
+        def establish_connection(name, spec)
+          @connection_pools[name] = connection_pool_class.new(spec)
         end
 
       end
