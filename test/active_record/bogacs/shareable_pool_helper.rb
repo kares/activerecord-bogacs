@@ -3,6 +3,7 @@ require File.expand_path('../../test_helper', File.dirname(__FILE__))
 
 ActiveRecord::Bogacs::ShareablePool.class_eval do
   attr_reader :shared_connections
+  attr_writer :size, :shared_size
 end
 
 module ActiveRecord

@@ -9,10 +9,12 @@ module ActiveRecord
 
         def setup
           connection_pool.disconnect!
+          @_pool_size = set_pool_size(10, 5)
         end
 
         def teardown
           clear_active_connections!; clear_shared_connections!
+          set_pool_size(*@_pool_size)
         end
 
         def test_do_not_share_if_theres_an_active_connection
@@ -21,7 +23,7 @@ module ActiveRecord
             with_shared_connection do |connection|
               assert connection
               refute shared_connection?(connection)
-              assert_nil Thread.current[:shared_pool_connection]
+              assert_nil current_shared_pool_connection
               assert_equal existing_conn, ActiveRecord::Base.connection
             end
             assert_equal existing_conn, ActiveRecord::Base.connection
@@ -32,11 +34,11 @@ module ActiveRecord
           begin
             with_shared_connection do |connection|
               assert shared_connection?(connection)
-              assert_equal connection, Thread.current[:shared_pool_connection]
+              assert_equal connection, current_shared_pool_connection
 
               assert_equal connection, ActiveRecord::Base.connection # only during block
             end
-            assert_nil Thread.current[:shared_pool_connection]
+            assert_nil current_shared_pool_connection
             # - they actually might be the same - no need to check-out a new :
             # refute_equal shared_connection, ActiveRecord::Base.connection
           end
@@ -46,18 +48,18 @@ module ActiveRecord
           begin
             with_shared_connection do |connection|
               assert shared_connection?(connection)
-              assert_equal connection, Thread.current[:shared_pool_connection]
+              assert_equal connection, current_shared_pool_connection
 
               assert_equal connection, ActiveRecord::Base.connection # only during block
 
               # test nested block :
               with_shared_connection do |connection2|
                 assert_equal connection, connection2
-                assert_equal connection2, Thread.current[:shared_pool_connection]
+                assert_equal connection2, current_shared_pool_connection
               end
-              assert_equal connection, Thread.current[:shared_pool_connection]
+              assert_equal connection, current_shared_pool_connection
             end
-            assert_nil Thread.current[:shared_pool_connection]
+            assert_nil current_shared_pool_connection
           end
         end
 
@@ -73,14 +75,14 @@ module ActiveRecord
                 shared_connection = connection
 
                 assert shared_connection?(connection)
-                assert_equal connection, Thread.current[:shared_pool_connection]
+                assert_equal connection, current_shared_pool_connection
 
                 # just test that selects are fine :
                 connection.exec_query(sample_query)
 
                 assert_equal connection, thread_connection.value
               end
-              assert_nil Thread.current[:shared_pool_connection]
+              assert_nil current_shared_pool_connection
             end
 
             refute_equal shared_connection, ActiveRecord::Base.connection
@@ -171,11 +173,11 @@ module ActiveRecord
               assert_equal 5, shared_conns.uniq.size
 
               # still one left for normal connections :
-              assert 9, connection_pool.connections.size
+              assert_equal 9, connection_pool.connections.size
 
               conn = ActiveRecord::Base.connection
               refute shared_connection?(conn)
-              assert 10, connection_pool.connections.size
+              assert_equal 10, connection_pool.connections.size
 
             end
           ensure # release created threads
@@ -193,7 +195,7 @@ module ActiveRecord
               # getting another one will block - timeout error :
               assert_raise ActiveRecord::ConnectionTimeoutError do
                 with_shared_connection do |connection|
-                  assert false, "not expected to get a shared-connection"
+                  flunk "not expected to get a shared-connection"
                 end
               end
             end
@@ -285,13 +287,50 @@ module ActiveRecord
           end
         end
 
+        protected
+
+        def current_shared_pool_connection
+          Thread.current[:shared_pool_connection]
+        end
+
+        def set_pool_size(size, shared_size = nil)
+          prev_size = connection_pool.size
+          prev_shared_size = connection_pool.shared_size
+          connection_pool.size = size
+          connection_pool.shared_size = shared_size if shared_size
+          if block_given?
+            begin
+              yield
+            ensure
+              connection_pool.size = prev_size
+              connection_pool.shared_size = prev_shared_size
+            end
+          else
+            shared_size ? [ prev_size, prev_shared_size ] : prev_size
+          end
+        end
+
+        def set_shared_size(size)
+          prev_size = connection_pool.shared_size
+          connection_pool.shared_size = size
+          if block_given?
+            begin
+              yield
+            ensure
+              connection_pool.shared_size = prev_size
+            end
+          else
+            prev_size
+          end
+        end
+
         private
 
         @@counter = 0
         STDOUT.sync = true
 
         def shared_connection_thread(connection_holder, wait = true)
-          test_name = @__name__ # mini-test internals
+          test_name = _test_name
 
           debug = test_name == 'test_starts_blocking_when_sharing_max_is_reached_with_pool_prefilled'
           if debug && false
