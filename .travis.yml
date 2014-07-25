@@ -1,0 +1,25 @@
+language: ruby
+jdk:
+  - openjdk6
+  - oraclejdk7
+  - oraclejdk8
+rvm:
+  - jruby
+  #- jruby-head
+  #- jruby-18mode
+  #- jruby-19mode
+  #- 2.1.0
+before_install:
+  - ((jruby -v | grep 1.8.7) && jruby --1.9 -S gem update --system 2.1.11) || true
+before_script:
+  - echo $JRUBY_OPTS
+  - export JRUBY_OPTS="--server -Xcext.enabled=false -Xcompile.invokedynamic=false"
+  #- export JAVA_OPTS="$JAVA_OPTS -Xmx600M"
+  - echo $JAVA_OPTS
+  - echo $JAVA_OPTS
+script:
+  - bundle exec rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download
+  - bundle exec rake db:create:mysql db:create:postgresql
+env:
+  - JRUBY_OPTS="--1.8 $JRUBY_OPTS" AR_ADAPTER=mysql
+  - JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=postgresql
