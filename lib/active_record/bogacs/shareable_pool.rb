@@ -10,7 +10,7 @@ require 'atomic'
 #
 module ActiveRecord
   module Bogacs
-    class ShareablePool < ConnectionAdapters::ConnectionPool
+    class ShareablePool < ConnectionAdapters::ConnectionPool # TODO do not override?!
       include ThreadSafe::Util::CheapLockable
 
       DEFAULT_SHARED_POOL = 0.25 # only allow 25% of the pool size to be shared
@@ -24,9 +24,9 @@ module ActiveRecord
         shared_size = spec.config[:shared_pool]
         shared_size = shared_size ? shared_size.to_f : DEFAULT_SHARED_POOL
         # size 0.0 - 1.0 assumes percentage of the pool size
-        shared_size = ( size * shared_size ).round if shared_size <= 1.0
+        shared_size = ( @size * shared_size ).round if shared_size <= 1.0
         @shared_size = shared_size.to_i
-        @shared_connections = ThreadSafe::Cache.new(initial_capacity: @shared_size, concurrency_level: 20)
+        @shared_connections = ThreadSafe::Cache.new # :initial_capacity => @shared_size, :concurrency_level => 20
       end
 
       # @override
@@ -53,6 +53,7 @@ module ActiveRecord
               # NOTE: the other option is to not care about shared here at all ...
               if shared_count.get == 0 # releasing a shared connection
                 release_shared_connection(reserved_conn)
+              #else return false
               end
             end
           else # check back-in non-shared connections
@@ -77,6 +78,18 @@ module ActiveRecord
         cheap_synchronize { @shared_connections.delete(conn); super }
       end
 
+#      # Return any checked-out connections back to the pool by threads that
+#      # are no longer alive.
+#      # @private AR 3.2 compatibility
+#      def clear_stale_cached_connections!
+#        keys = Thread.list.find_all { |t| t.alive? }.map(&:object_id)
+#        keys = @reserved_connections.keys - keys
+#        keys.each do |key|
+#          release_connection(key)
+#          @reserved_connections.delete(key)
+#        end
+#      end if ActiveRecord::VERSION::MAJOR < 4
+
       # TODO take care of explicit connection.close (`pool.checkin self`) ?
 
       # Custom API :
@@ -86,10 +99,8 @@ module ActiveRecord
           Thread.current[:shared_pool_connection] = nil
         end
 
-        cheap_synchronize do
-          @shared_connections.delete(connection)
-          checkin connection
-        end
+        @shared_connections.delete(connection)
+        checkin connection
       end
 
       def with_shared_connection
@@ -143,6 +154,12 @@ module ActiveRecord
         (@reserved_connections.get(connection_id) || ( return false )).in_use?
       end
 
+      def super_active_connection?(connection_id = current_connection_id)
+        synchronize do
+          (@reserved_connections[connection_id] || ( return false )).in_use?
+        end
+      end if ActiveRecord::VERSION::MAJOR < 4
+
       def acquire_connection_no_wait?
         synchronize do
           @available.send(:can_remove_no_wait?) || @connections.size < @size
@@ -190,8 +207,8 @@ module ActiveRecord
         least_shared # might be nil in that case we'll likely wait (as super)
       end
 
-      def add_shared_connection(connection) # TODO avoid synchronize
-        cheap_synchronize { @shared_connections[connection] = Atomic.new(1) }
+      def add_shared_connection(connection)
+        @shared_connections[connection] = Atomic.new(1)
       end
 
       def rem_shared_connection(connection)

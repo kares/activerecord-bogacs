@@ -12,6 +12,16 @@ module ActiveRecord
           @pool = ShareablePool.new ActiveRecord::Base.connection_pool.spec
         end
 
+        if ActiveRecord::VERSION::MAJOR < 4
+          # TODO override with similar (back-ported) tests :
+          undef :test_remove_connection
+          undef :test_remove_connection_for_thread
+          undef :test_removing_releases_latch
+
+          undef :test_reap_and_active
+          undef :test_reap_inactive
+        end
+
       end
 
       class PoolAPITest < TestBase
@@ -94,7 +104,7 @@ module ActiveRecord
           ensure
             ActiveRecord::Base.connection
           end
-        end
+        end if ActiveRecord::VERSION::MAJOR >= 4
 
       end
 
