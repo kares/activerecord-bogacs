@@ -71,45 +71,94 @@ def _which(cmd)
   nil
 end
 
+namespace :tomcat do
 
-['tomcat-jdbc', 'tomcat-dbcp'].each do |tomcat_pool|
+  tomcat_maven_repo = 'http://repo2.maven.org/maven2/org/apache/tomcat'
+  download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
+  version_default = '7.0.54'
 
-  namespace tomcat_pool do
+  [ 'tomcat-jdbc', 'tomcat-dbcp' ].each do |tomcat_pool|
+    namespace tomcat_pool.sub('tomcat-', '') do # rake tomcat:dbcp:download
 
-    TOMCAT_MAVEN_REPO = 'http://repo2.maven.org/maven2/org/apache/tomcat'
-    DOWNLOAD_DIR = File.expand_path('test/jars', File.dirname(__FILE__))
+      tomcat_pool_jar = "#{tomcat_pool}.jar"
 
-    tomcat_pool_jar = "#{tomcat_pool}.jar"
+      task :download, :version do |_,args| # rake tomcat:jdbc:download[7.0.54]
+        version = args[:version] || version_default
 
-    task :download, :version do |_, args| # rake tomcat-jdbc:download[7.0.54]
-      version = args[:version]
+        uri = "#{tomcat_maven_repo}/#{tomcat_pool}/#{version}/#{tomcat_pool}-#{version}.jar"
 
-      uri = "#{TOMCAT_MAVEN_REPO}/#{tomcat_pool}/#{version}/#{tomcat_pool}-#{version}.jar"
+        require 'open-uri'; require 'tmpdir'
+
+        temp_dir = File.join(Dir.tmpdir, (Time.now.to_f * 1000).to_i.to_s)
+        FileUtils.mkdir temp_dir
+
+        Dir.chdir(temp_dir) do
+          FileUtils.mkdir download_dir unless File.exist?(download_dir)
+          puts "downloading #{uri}"
+          file = open(uri)
+          FileUtils.cp file.path, File.join(download_dir, tomcat_pool_jar)
+        end
+
+        FileUtils.rm_r temp_dir
+      end
+
+      task :check do
+        jar_path = File.join(download_dir, tomcat_pool_jar)
+        unless File.exist?(jar_path)
+          Rake::Task["#{tomcat_pool.sub('-',':')}:download"].invoke
+        end
+      end
+
+      task :clear do
+        jar_path = File.join(download_dir, tomcat_pool_jar)
+        rm jar_path if File.exist?(jar_path)
+      end
+
+    end
+  end
+
+  namespace 'jndi' do # contains a FS JNDI impl (for tests)
+
+    catalina_jar = 'tomcat-catalina.jar'; juli_jar = 'tomcat-juli.jar'
+
+    task :download, :version do |_,args|
+      version = args[:version] || version_default
+
+      catalina_uri = "#{tomcat_maven_repo}/tomcat-catalina/#{version}/tomcat-catalina-#{version}.jar"
+      juli_uri = "#{tomcat_maven_repo}/tomcat-juli/#{version}/tomcat-juli-#{version}.jar"
 
       require 'open-uri'; require 'tmpdir'
 
       temp_dir = File.join(Dir.tmpdir, (Time.now.to_f * 1000).to_i.to_s)
       FileUtils.mkdir temp_dir
 
+      downloads = Hash.new
+      downloads[catalina_jar] = catalina_uri
+      downloads[juli_jar] = juli_uri
+
       Dir.chdir(temp_dir) do
-        FileUtils.mkdir DOWNLOAD_DIR unless File.exist?(DOWNLOAD_DIR)
-        puts "downloading #{uri}"
-        file = open(uri)
-        FileUtils.cp file.path, File.join(DOWNLOAD_DIR, tomcat_pool_jar)
+        FileUtils.mkdir download_dir unless File.exist?(download_dir)
+        downloads.each do |jar, uri|
+          puts "downloading #{uri}"
+          file = open(uri)
+          FileUtils.cp file.path, File.join(download_dir, jar)
+        end
       end
 
       FileUtils.rm_r temp_dir
     end
 
     task :check do
-      jar_path = File.join(DOWNLOAD_DIR, tomcat_pool_jar)
+      jar_path = File.join(download_dir, catalina_jar)
       unless File.exist?(jar_path)
-        Rake::Task["#{tomcat_pool}:download"].invoke
+        Rake::Task['tomcat:jndi:download'].invoke
       end
     end
 
     task :clear do
-      jar_path = File.join(DOWNLOAD_DIR, tomcat_pool_jar)
+      jar_path = File.join(download_dir, catalina_jar)
+      rm jar_path if File.exist?(jar_path)
+      jar_path = File.join(download_dir, juli_jar)
       rm jar_path if File.exist?(jar_path)
     end
 
