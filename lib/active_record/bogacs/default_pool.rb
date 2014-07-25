@@ -201,7 +201,7 @@ module ActiveRecord
 
       include MonitorMixin
 
-      attr_accessor :automatic_reconnect, :checkout_timeout, :dead_connection_timeout
+      attr_accessor :automatic_reconnect, :checkout_timeout
       attr_reader :spec, :connections, :size, :reaper
 
       # Creates a new ConnectionPool object. +spec+ is a ConnectionSpecification
@@ -216,7 +216,6 @@ module ActiveRecord
         @spec = spec
 
         @checkout_timeout = spec.config[:checkout_timeout] || 5
-        @dead_connection_timeout = spec.config[:dead_connection_timeout] || 5
         @reaper = Reaper.new self, spec.config[:reaping_frequency]
         @reaper.run
 
@@ -340,11 +339,13 @@ module ActiveRecord
       # calling +checkout+ on this pool.
       def checkin(conn)
         synchronize do
+          owner = conn.owner
+
           conn.run_callbacks :checkin do
             conn.expire
           end
 
-          release conn
+          release owner
 
           @available.add conn
         end
@@ -357,22 +358,28 @@ module ActiveRecord
           @connections.delete conn
           @available.delete conn
 
-          # FIXME: we might want to store the key on the connection so that removing
-          # from the reserved hash will be a little easier.
-          release conn
+          release conn.owner
 
           @available.add checkout_new_connection if @available.any_waiting?
         end
       end
 
-      # Removes dead connections from the pool. A dead connection can occur
-      # if a programmer forgets to close a connection at the end of a thread
+      # Recover lost connections for the pool. A lost connection can occur if
+      # a programmer forgets to checkin a connection at the end of a thread
       # or a thread dies unexpectedly.
       def reap
-        synchronize do
-          stale = Time.now - @dead_connection_timeout
-          connections.dup.each do |conn|
-            if conn.in_use? && stale > conn.last_use && !conn.active_threadsafe?
+        stale_connections = synchronize do
+          @connections.select do |conn|
+            conn.in_use? && !conn.owner.alive?
+          end
+        end
+
+        stale_connections.each do |conn|
+          synchronize do
+            if conn.active?
+              conn.reset!
+              checkin conn
+            else
               remove conn
             end
           end
@@ -394,20 +401,15 @@ module ActiveRecord
         elsif @connections.size < @size
           checkout_new_connection
         else
+          reap
           @available.poll(@checkout_timeout)
         end
       end
 
-      def release(conn)
-        thread_id = if @reserved_connections[current_connection_id] == conn
-          current_connection_id
-        else
-          @reserved_connections.keys.find { |k|
-            @reserved_connections[k] == conn
-          }
-        end
+      def release(owner)
+        thread_id = owner.object_id
 
-        @reserved_connections.delete thread_id if thread_id
+        @reserved_connections.delete thread_id
       end
 
       def new_connection
@@ -434,7 +436,7 @@ module ActiveRecord
         c
       end
     end
-
+    
 =begin
 
     # ConnectionHandler is a collection of ConnectionPool objects. It is used
