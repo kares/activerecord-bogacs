@@ -176,6 +176,31 @@ module ActiveRecord
 #        end
 #      end
 
+      protected
+
+      @@sample_query = ENV['SAMPLE_QUERY']
+      @@test_query = ENV['TEST_QUERY'] || @@sample_query
+
+      def sample_query
+        @@sample_query ||= begin
+          case current_connection_config[:adapter]
+          when /mysql/ then 'SHOW VARIABLES LIKE "%version%"'
+          when /postgresql/ then 'SELECT version()'
+          else 'SELECT 42'
+          end
+        end
+      end
+
+      def test_query
+        @@test_query ||= begin
+          case current_connection_config[:adapter]
+          when /mysql/ then 'SELECT DATABASE() FROM DUAL'
+          when /postgresql/ then 'SELECT current_database()'
+          else sample_query
+          end
+        end
+      end
+
     end
 
     module JndiTestHelper

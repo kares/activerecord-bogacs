@@ -5,35 +5,7 @@ module ActiveRecord
     class ShareablePool
 
       class ConnectionSharingTest < TestBase
-
-        @@sample_query = ENV['SAMPLE_QUERY']
-        @@test_query = ENV['TEST_QUERY'] || @@sample_query
-
-        def self.startup
-          super
-          @@sample_query ||= begin
-            case connection_config[:adapter]
-            when /mysql/ then 'SHOW VARIABLES LIKE "%version%"'
-            when /postgresql/ then 'SELECT version()'
-            else 'SELECT 42'
-            end
-          end
-          @@test_query ||= begin
-            case connection_config[:adapter]
-            when /mysql/ then 'SELECT DATABASE() FROM DUAL'
-            when /postgresql/ then 'SELECT current_database()'
-            else @@sample_query
-            end
-          end
-        end
-
-        def self.connection_config
-          if ActiveRecord::Base.respond_to?(:connection_config)
-            ActiveRecord::Base.connection_config
-          else
-            ActiveRecord::Base.connection_pool.spec.config
-          end
-        end
+        include TestHelper
 
         def setup
           connection_pool.disconnect!
@@ -104,7 +76,7 @@ module ActiveRecord
                 assert_equal connection, Thread.current[:shared_pool_connection]
 
                 # just test that selects are fine :
-                connection.exec_query(@@sample_query)
+                connection.exec_query(sample_query)
 
                 assert_equal connection, thread_connection.value
               end
@@ -139,7 +111,7 @@ module ActiveRecord
                   "with_shared_connection reused a previously shared connection " <<
                   "instead of checking out another from the (non-filled) pool"
                 # just test that selects are fine :
-                connection.exec_query(@@sample_query)
+                connection.exec_query(sample_query)
               end
               #puts "AR-BASE with_shared 1 DONE"
 
@@ -292,7 +264,7 @@ module ActiveRecord
                     threads << Thread.new(self) do |test|
                       begin
                         test.with_shared_connection do
-                          ActiveRecord::Base.connection.exec_query @@test_query # 'select 42'
+                          ActiveRecord::Base.connection.exec_query test_query # 'select 42'
                           sleep(0.005) while ( ! stop_condition.value )
                         end
                       rescue => e
@@ -336,7 +308,7 @@ module ActiveRecord
             begin
               ActiveRecord::Base.connection_pool.with_shared_connection do |connection|
                 # just test that selects are fine :
-                connection.exec_query(@@test_query)
+                connection.exec_query(test_query)
 
                 connection_holder.swap(connection)
                 while connection_holder.value != false
@@ -344,7 +316,7 @@ module ActiveRecord
                   sleep(0.001)
                 end
                 # just test that selects are fine :
-                connection.select_value(@@sample_query)
+                connection.select_value(sample_query)
               end
             rescue => e
               puts "\n#{test_name} acquire shared thread failed: #{e.inspect} \n  #{e.backtrace.join("  \n")}\n"
