@@ -25,4 +25,4 @@ TODO: **WiP**
 Copyright (c) 2014 [Karol Bucek](http://kares.org).
 See LICENSE (http://en.wikipedia.org/wiki/MIT_License) for details.
 
-[0]: http://res.cloudinary.com/kares/image/upload/c_scale,w_480/v1406192094/bogacs.jpg
+[0]: http://res.cloudinary.com/kares/image/upload/c_scale,h_600,w_800/v1406451696/bogacs.jpg
