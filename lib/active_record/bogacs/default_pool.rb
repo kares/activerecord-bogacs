@@ -1,7 +1,9 @@
 require 'thread'
 require 'thread_safe'
 require 'monitor'
-require 'set'
+
+require 'active_record/connection_adapters/adapter_compat'
+require 'active_record/bogacs/pool_support'
 
 module ActiveRecord
   module Bogacs
@@ -50,6 +52,7 @@ module ActiveRecord
       #
       # The Queue in stdlib's 'thread' could replace this class except
       # stdlib's doesn't support waiting with a timeout.
+      # @private
       class Queue
         def initialize(lock = Monitor.new)
           @lock = lock
@@ -199,7 +202,8 @@ module ActiveRecord
         end
       end
 
-      include MonitorMixin
+      include PoolSupport
+      include MonitorMixin # TODO consider avoiding ?!
 
       attr_accessor :automatic_reconnect, :checkout_timeout
       attr_reader :spec, :connections, :size, :reaper
@@ -256,8 +260,9 @@ module ActiveRecord
 
       # Is there an open connection that is being used for the current thread?
       def active_connection?
+        connection_id = current_connection_id
         if conn = @reserved_connections.fetch(connection_id, nil)
-          conn.in_use? # synchronize { conn.in_use? }
+          !! conn.in_use? # synchronize { conn.in_use? }
         else
           false
         end
@@ -420,14 +425,6 @@ module ActiveRecord
         thread_id = owner.object_id
 
         @reserved_connections.delete thread_id
-      end
-
-      def new_connection
-        Base.send(spec.adapter_method, spec.config)
-      end
-
-      def current_connection_id #:nodoc:
-        Base.connection_id ||= Thread.current.object_id
       end
 
       def checkout_new_connection

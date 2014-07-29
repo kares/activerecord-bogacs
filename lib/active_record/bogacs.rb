@@ -6,6 +6,7 @@ require 'active_record/connection_adapters/abstract/connection_pool'
 
 module ActiveRecord
   module Bogacs
+    autoload :DefaultPool, 'active_record/bogacs/default_pool'
     autoload :FalsePool, 'active_record/bogacs/false_pool'
     autoload :ShareablePool, 'active_record/bogacs/shareable_pool'
   end

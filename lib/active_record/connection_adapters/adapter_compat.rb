@@ -3,34 +3,53 @@ require 'active_record/connection_adapters/abstract_adapter'
 module ActiveRecord
   module ConnectionAdapters
     AbstractAdapter.class_eval do
-      include MonitorMixin
 
-      # NOTE: to initialize the monitor, in 3.2 #initialize calls the
-      # MonitorMixin#initialize by doing super() but in 2.3 it does not
-      # we do about the same here by overriding Adapter#new :
-      # @private
-      def self.new(*args)
-        instance = super *args
-        instance.send :mon_initialize
-        instance
-      end
+      attr_accessor :pool unless method_defined? :pool
 
-      attr_accessor :pool
+      unless method_defined? :owner
 
-      attr_reader :last_use, :in_use
-      alias :in_use? :in_use
+        attr_reader :owner
 
-      def lease
-        synchronize do
-          unless in_use
-            @in_use = true
-            @last_use = Time.now
+        if method_defined? :in_use?
+
+          def lease
+            unless in_use?
+              @owner = Thread.current; @in_use = true
+            end
+          end
+
+          def expire
+            @in_use = false; @owner = nil
+          end
+
+        else
+
+          alias :in_use? :owner
+
+          def lease
+            unless in_use?
+              @owner = Thread.current
+            end
+          end
+
+          def expire
+            @owner = nil
+          end
+
+        end
+
+        alias :in_use? :owner
+
+        def lease
+          unless in_use?
+            @owner = Thread.current
           end
         end
-      end
 
-      def expire
-        @in_use = false
+        def expire
+          @owner = nil
+        end
+
       end
 
     end
