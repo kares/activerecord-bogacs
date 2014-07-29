@@ -215,12 +215,17 @@ module ActiveRecord
 
         @spec = spec
 
-        @checkout_timeout = spec.config[:checkout_timeout] || 5
+        # AR 3.2 : spec.config[:checkout_timeout] || spec.config[:wait_timeout] || 5
+        @checkout_timeout = ( spec.config[:checkout_timeout] || 5 ).to_f
         @reaper = Reaper.new self, spec.config[:reaping_frequency]
         @reaper.run
 
         # default max pool size to 5
-        @size = (spec.config[:pool] && spec.config[:pool].to_i) || 5
+        if spec.config[:pool]
+          @size = spec.config[:pool].to_i
+        else
+          @size = 5
+        end
 
         # The cache of reserved connections mapped to threads
         @reserved_connections = ThreadSafe::Cache.new(:initial_capacity => @size)
@@ -237,19 +242,21 @@ module ActiveRecord
       # #connection can be called any number of times; the connection is
       # held in a hash keyed by the thread id.
       def connection
-        # this is correctly done double-checked locking
-        # (ThreadSafe::Cache's lookups have volatile semantics)
-        @reserved_connections[current_connection_id] || synchronize do
-          @reserved_connections[current_connection_id] ||= checkout
+        connection_id = current_connection_id
+        unless conn = @reserved_connections.fetch(connection_id, nil)
+          synchronize do
+            conn = ( @reserved_connections[connection_id] ||= checkout )
+          end
         end
+        conn
       end
 
       # Is there an open connection that is being used for the current thread?
       def active_connection?
-        synchronize do
-          @reserved_connections.fetch(current_connection_id) {
-            return false
-          }.in_use?
+        if conn = @reserved_connections.fetch(connection_id, nil)
+          conn.in_use? # synchronize { conn.in_use? }
+        else
+          false
         end
       end
 
@@ -257,10 +264,10 @@ module ActiveRecord
       # #release_connection releases the connection-thread association
       # and returns the connection to the pool.
       def release_connection(with_id = current_connection_id)
-        synchronize do
+        #synchronize do
           conn = @reserved_connections.delete(with_id)
           checkin conn if conn
-        end
+        #end
       end
 
       # If a connection already exists yield it to the block. If no connection
@@ -436,7 +443,7 @@ module ActiveRecord
         c
       end
     end
-    
+
 =begin
 
     # ConnectionHandler is a collection of ConnectionPool objects. It is used
