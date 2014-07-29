@@ -16,9 +16,7 @@ module ActiveRecord
     # 1. Simply use ActiveRecord::Base.connection as with Active Record 2.1 and
     # earlier (pre-connection-pooling). Eventually, when you're done with
     # the connection(s) and wish it to be returned to the pool, you call
-    # ActiveRecord::Base.clear_active_connections!. This will be the
-    # default behavior for Active Record when used in conjunction with
-    # Action Pack's request handling cycle.
+    # ActiveRecord::Base.clear_active_connections!.
     # 2. Manually check out a connection from the pool with
     # ActiveRecord::Base.connection_pool.checkout. You are responsible for
     # returning this connection to the pool when finished by calling
@@ -42,10 +40,7 @@ module ActiveRecord
     # Reaper, which attempts to find and close dead connections, which can
     # occur if a programmer forgets to close a connection at the end of a
     # thread or a thread dies unexpectedly. (Default nil, which means don't
-    # run the Reaper).
-    # * +dead_connection_timeout+: number of seconds from last checkout
-    # after which the Reaper will consider a connection reapable. (default
-    # 5 seconds).
+    # run the Reaper - reaping will still happen occasionally).
     class DefaultPool
       # Threadsafe, fair, FIFO queue. Meant to be used by ConnectionPool
       # with which it shares a Monitor. But could be a generic Queue.
@@ -112,10 +107,10 @@ module ActiveRecord
         # Raises:
         # - ConnectionTimeoutError if +timeout+ is given and no element
         # becomes available after +timeout+ seconds,
-        def poll(timeout = nil)
+        def poll(timeout = nil, &block)
           synchronize do
             if timeout
-              no_wait_poll || wait_poll(timeout)
+              no_wait_poll || wait_poll(timeout, &block)
             else
               no_wait_poll
             end
@@ -156,10 +151,13 @@ module ActiveRecord
         # Waits on the queue up to +timeout+ seconds, then removes and
         # returns the head of the queue.
         def wait_poll(timeout)
-          @num_waiting += 1
-
           t0 = Time.now
           elapsed = 0
+
+          @num_waiting += 1
+
+          yield if block_given?
+
           loop do
             @cond.wait(timeout - elapsed)
 
@@ -222,7 +220,7 @@ module ActiveRecord
         @checkout_timeout = ( spec.config[:checkout_timeout] ||
             spec.config[:wait_timeout] || 5.0 ).to_f # <= 3.2 supports wait_timeout
         @reaper = Reaper.new self, spec.config[:reaping_frequency]
-        @reaper.run
+        @reaping = !! @reaper.run
 
         # default max pool size to 5
         if spec.config[:pool]
@@ -441,7 +439,7 @@ module ActiveRecord
         elsif @connections.size < @size
           checkout_new_connection
         else
-          reap
+          reap unless @reaping
           @available.poll(@checkout_timeout)
         end
       end
