@@ -215,8 +215,8 @@ module ActiveRecord
 
         @spec = spec
 
-        # AR 3.2 : spec.config[:checkout_timeout] || spec.config[:wait_timeout] || 5
-        @checkout_timeout = ( spec.config[:checkout_timeout] || 5 ).to_f
+        @checkout_timeout = ( spec.config[:checkout_timeout] ||
+            spec.config[:wait_timeout] || 5.0 ).to_f # <= 3.2 supports wait_timeout
         @reaper = Reaper.new self, spec.config[:reaping_frequency]
         @reaper.run
 
@@ -224,6 +224,9 @@ module ActiveRecord
         if spec.config[:pool]
           @size = spec.config[:pool].to_i
         else
+          if defined? Rails.env && Rails.env.production?
+            logger && logger.debug("pool: option not set, using a default = 5")
+          end
           @size = 5
         end
 
@@ -442,6 +445,10 @@ module ActiveRecord
         end
         c
       end
+    end
+
+    def logger
+      ActiveRecord::Base.logger
     end
 
 =begin
