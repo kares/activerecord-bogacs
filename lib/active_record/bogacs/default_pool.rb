@@ -286,7 +286,7 @@ module ActiveRecord
 
       # Returns true if a connection has already been opened.
       def connected?
-        synchronize { @connections.any? }
+        @connections.size > 0 # synchronize { @connections.any? }
       end
 
       # Disconnects all connections in the pool, and clears the pool.
@@ -297,7 +297,7 @@ module ActiveRecord
             checkin conn
             conn.disconnect!
           end
-          @connections = []
+          @connections.clear
           @available.clear
         end
       end
