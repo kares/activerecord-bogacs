@@ -325,6 +325,30 @@ module ActiveRecord
         end
       end
 
+      # Verify active connections and remove and disconnect connections
+      # associated with stale threads.
+      # @private AR 3.2 compatibility
+      def verify_active_connections!
+        synchronize do
+          clear_stale_cached_connections!
+          @connections.each do |connection|
+            connection.verify!
+          end
+        end
+      end if ActiveRecord::VERSION::MAJOR < 4
+
+      # Return any checked-out connections back to the pool by threads that
+      # are no longer alive.
+      def clear_stale_cached_connections!
+        keys = Thread.list.find_all { |t| t.alive? }.map(&:object_id)
+        keys = @reserved_connections.keys - keys
+        keys.each do |key|
+          conn = @reserved_connections[key]
+          checkin conn
+          @reserved_connections.delete(key)
+        end
+      end if ActiveRecord::VERSION::MAJOR < 4
+
       # Check-out a database connection from the pool, indicating that you want
       # to use it. You should call #checkin when you no longer need this.
       #
@@ -400,6 +424,7 @@ module ActiveRecord
           end
         end
       end
+      # NOTE: active? and reset! are >= AR 2.3
 
       private
 
