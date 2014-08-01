@@ -205,6 +205,7 @@ module ActiveRecord
 
       attr_accessor :automatic_reconnect, :checkout_timeout
       attr_reader :spec, :connections, :size, :reaper
+      attr_reader :initial_size
 
       # Creates a new ConnectionPool object. +spec+ is a ConnectionSpecification
       # object which describes database connection information (e.g. adapter,
@@ -239,6 +240,12 @@ module ActiveRecord
         @automatic_reconnect = true
 
         @available = Queue.new self
+
+        initial_size = spec.config[:pool_initial] || 0
+        initial_size = @size if initial_size == true
+        initial_size = (@size * initial_size).to_i if initial_size <= 1.0
+        # NOTE: warn on onitial_size > size !
+        prefill_initial_connections if ( @initial_size = initial_size.to_i ) > 0
       end
 
       # Retrieve the connection associated with the current thread, or call
@@ -465,10 +472,22 @@ module ActiveRecord
         end
         c
       end
-    end
 
-    def logger
-      ActiveRecord::Base.logger
+      def prefill_initial_connections
+        conns = []; start = Time.now
+        begin
+          @initial_size.times { conns << checkout }
+        ensure
+          conns.each { |conn| checkin(conn) }
+        end
+        logger && logger.debug("pre-filled pool with #{@initial_size}/#{@size} connections in #{Time.now - start}")
+        conns
+      end
+
+      def logger
+        ActiveRecord::Base.logger
+      end
+
     end
 
 =begin
