@@ -41,6 +41,17 @@ if Rails.env.production?
 end
 ```
 
+pools are expected to work with older ActiveRecord versions, if not let us know.
+
+### Default Pool
+
+Meant as a back-port for users stuck with old Rails versions (< 4.0) on production,
+facing potential (pool related) concurrency bugs e.g. with high-loads under JRuby.
+
+Based on pool code from 4.x (which works much better than any previous version),
+with a few minor tunings and extensions such as `pool_initial: 0.5` which allows
+to specify how many connections to prefill when the pool is created.
+
 ### False Pool
 
 The false pool won't do any actual pooling, it is assumes that an underlying pool
@@ -71,13 +82,17 @@ default Tomcat JDBC pool) :
       maxWait: <%= (( ENV['POOL_TIMEOUT'] || 5.0 ).to_f * 1000).to_i %> # default 30s
 ```
 
-ActiveRecord-JDBC adapter allows you to lookup connection from JNDI using :
+ActiveRecord-JDBC adapter allows you to lookup connection from JNDI using the
+following configuration :
 
 ```
 production:
   adapter: mysql2
   jndi: java:/comp/env/jdbc/BogacsDB
 ```
+
+**NOTE:** using the `FalsePool` there's nothing to configure (in *database.yml*)
+that is `no_pool: 5` or `checkout_timeout: 5` defaults!
 
 ### Shareable Pool
 
