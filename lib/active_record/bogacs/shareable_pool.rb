@@ -10,7 +10,7 @@ require 'atomic'
 #
 module ActiveRecord
   module Bogacs
-    class ShareablePool < ConnectionAdapters::ConnectionPool # TODO do not override?!
+    class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
       include ThreadSafe::Util::CheapLockable
 
       DEFAULT_SHARED_POOL = 0.25 # only allow 25% of the pool size to be shared
@@ -162,9 +162,20 @@ module ActiveRecord
 
       def acquire_connection_no_wait?
         synchronize do
-          @available.send(:can_remove_no_wait?) || @connections.size < @size
+          @connections.size < @size || @available.send(:can_remove_no_wait?)
+          #return true if @connections.size < @size
+          # @connections.size < @size || Queue#can_remove_no_wait? :
+          #queue = @available.instance_variable_get(:@queue)
+          #num_waiting = @available.instance_variable_get(:@num_waiting)
+          #queue.size > num_waiting
         end
       end
+
+      def acquire_connection_no_wait?
+        synchronize do
+          @connections.size < @size || @connections.any? { |c| ! c.in_use? }
+        end
+      end if ActiveRecord::VERSION::MAJOR < 4
 
       # get a (shared) connection that is least shared among threads (or nil)
       # nil gets returned if it's 'better' to checkout a new one to be shared
