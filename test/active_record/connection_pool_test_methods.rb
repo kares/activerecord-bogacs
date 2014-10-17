@@ -160,7 +160,11 @@ module ActiveRecord
       def test_active_connection?
         assert_false pool.active_connection?
         assert pool.connection
-        assert_true pool.active_connection?
+        if ActiveRecord::VERSION::MAJOR >= 4
+          assert_true pool.active_connection?
+        else
+          assert pool.active_connection?
+        end
         pool.release_connection
         assert_false pool.active_connection?
       end

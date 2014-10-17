@@ -12,6 +12,7 @@ module ActiveRecord
   module Bogacs
     class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
       include ThreadSafe::Util::CheapLockable
+      include PoolSupport
 
       DEFAULT_SHARED_POOL = 0.25 # only allow 25% of the pool size to be shared
       MAX_THREAD_SHARING = 5 # not really a strict limit but should hold
@@ -77,15 +78,6 @@ module ActiveRecord
       def remove(conn)
         cheap_synchronize { @shared_connections.delete(conn); super }
       end
-
-      # @note Method not part of the pre 4.0 API (does no exist).
-      def remove(conn)
-        cheap_synchronize do
-          @shared_connections.delete conn
-          @connections.delete conn
-          release conn
-        end
-      end if ActiveRecord::VERSION::MAJOR < 4
 
 #      # Return any checked-out connections back to the pool by threads that
 #      # are no longer alive.
