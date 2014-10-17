@@ -78,6 +78,15 @@ module ActiveRecord
         cheap_synchronize { @shared_connections.delete(conn); super }
       end
 
+      # @note Method not part of the pre 4.0 API (does no exist).
+      def remove(conn)
+        cheap_synchronize do
+          @shared_connections.delete conn
+          @connections.delete conn
+          release conn
+        end
+      end if ActiveRecord::VERSION::MAJOR < 4
+
 #      # Return any checked-out connections back to the pool by threads that
 #      # are no longer alive.
 #      # @private AR 3.2 compatibility
