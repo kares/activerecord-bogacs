@@ -1,7 +1,10 @@
 require 'active_record/connection_adapters/abstract/connection_pool'
+
 require 'thread'
 require 'thread_safe'
 require 'atomic'
+
+require 'active_record/bogacs/pool_support'
 
 # NOTE: needs explicit configuration - before connection gets established e.g.
 #

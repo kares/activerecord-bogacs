@@ -9,7 +9,7 @@ module ActiveRecord
       def config; AR_CONFIG end
 
       def setup
-        super
+        super; require 'active_record/bogacs/pool_support'
         @pool = ConnectionPool.new ActiveRecord::Base.connection_pool.spec
         @pool.extend Bogacs::PoolSupport # aligns API for AR < 4.0
       end
