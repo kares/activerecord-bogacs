@@ -220,7 +220,7 @@ module ActiveRecord
         rescue ConnectionTimeoutError => e
           raise e
         rescue => e
-          raise ConnectionTimeoutError, e.message if _timeout_error?(e)
+          raise ConnectionTimeoutError, e.message if timeout_error?(e)
           raise e
         end
         conn.pool = self
@@ -233,26 +233,29 @@ module ActiveRecord
       #  conn
       #end
 
-      # sample on JRuby + Tomcat JDBC :
-      # ActiveRecord::JDBCError(<The driver encountered an unknown error:
-      #   org.apache.tomcat.jdbc.pool.PoolExhaustedException:
-      #   [main] Timeout: Pool empty. Unable to fetch a connection in 2 seconds,
-      #   none available[size:10; busy:10; idle:0; lastwait:2500].>
-      # )
-
-      def _timeout_error?(error)
-        error.inspect =~ /timeout/i
+      def timeout_error?(error)
+        full_error = error.inspect
+        # sample on JRuby + Tomcat JDBC :
+        # ActiveRecord::JDBCError(<The driver encountered an unknown error:
+        #   org.apache.tomcat.jdbc.pool.PoolExhaustedException:
+        #   [main] Timeout: Pool empty. Unable to fetch a connection in 2 seconds,
+        #   none available[size:10; busy:10; idle:0; lastwait:2500].>
+        # )
+        return true if full_error =~ /timeout/i
+        # C3P0 :
+        # java.sql.SQLException: An attempt by a client to checkout a Connection has timed out.
+        return true if full_error =~ /timed.?out/i
+        # NOTE: not sure what to do on MRI and friends (C-pools not tested)
+        false
       end
 
-#      def _timeout_error?(error); end # TODO: not sure what to do on MRI and friends
-#
-#      def _timeout_error?(error)
-#        if error.is_a?(JDBCError)
-#          if sql_exception = error.sql_exception
-#            return true if sql_exception.to_s =~ /timeout/i
-#          end
-#        end
-#      end if defined? ArJdbc
+      #def timeout_error?(error)
+      #  if error.is_a?(JDBCError)
+      #    if sql_exception = error.sql_exception
+      #      return true if sql_exception.to_s =~ /timeout/i
+      #    end
+      #  end
+      #end if defined? ArJdbc
 
     end
   end
