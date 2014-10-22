@@ -14,53 +14,65 @@ module ActiveRecord
         # extend Bogacs::TestHelper
         extend Bogacs::JndiTestHelper
 
+        @@data_source = nil
+
         def self.startup
           return if self == TestBase
 
-          ActiveRecord::Base.establish_connection AR_CONFIG
-
-          ActiveRecord::Base.connection.jdbc_connection # force connection
-          current_config = Bogacs::TestHelper.current_connection_config
-
-          ActiveRecord::Base.connection_pool.disconnect!
-
-          setup_jdbc_context
-          bind_data_source init_data_source current_config
-
           ConnectionAdapters::ConnectionHandler.connection_pool_class = FalsePool
-          ActiveRecord::Base.establish_connection jndi_config
+
+          establish_jndi_connection
         end
 
         def self.shutdown
           return if self == TestBase
 
+          close_data_source
+
           ActiveRecord::Base.connection_pool.disconnect!
           ConnectionAdapters::ConnectionHandler.connection_pool_class = ConnectionAdapters::ConnectionPool
         end
 
-      end
+        @@raw_config = nil
 
-      class ConnectionPoolWrappingTomcatJdbcTest < TestBase
+        def self.raw_config
+          @@raw_config ||= begin
+            ActiveRecord::Base.establish_connection AR_CONFIG
 
-        @@data_source = nil
-        def self.init_data_source(config)
-          @@data_source = init_tomcat_jdbc_data_source(config)
+            ActiveRecord::Base.connection.jdbc_connection # force connection
+            current_config = Bogacs::TestHelper.current_connection_config
+
+            ActiveRecord::Base.connection_pool.disconnect!
+
+            current_config
+          end
         end
 
+        def self.init_data_source
+          setup_jdbc_context
+          bind_data_source @@data_source = build_data_source(raw_config)
+        end
+
+        def self.establish_jndi_connection
+          init_data_source
+
+          ActiveRecord::Base.establish_connection jndi_config
+        end
+
+        def self.close_data_source
+          @@data_source.close if @@data_source
+        end
+
+      end
+
+      module ConnectionPoolWrappingDataSourceTestMethods
         include ConnectionAdapters::ConnectionPoolTestMethods
 
         def setup
           @pool = FalsePool.new ActiveRecord::Base.connection_pool.spec
         end
 
-        def teardown
-          @@data_source.send(:close, true) if @@data_source
-        end
-
-        def test_uses_false_pool_and_can_execute_query
-          assert_instance_of ActiveRecord::Bogacs::FalsePool, ActiveRecord::Base.connection_pool
-          assert ActiveRecord::Base.connection.exec_query('SELECT 42')
-        end
+        def max_pool_size; raise "#{__method__} not implemented" end
 
         # adjust ConnectionAdapters::ConnectionPoolTestMethods :
 
@@ -74,6 +86,11 @@ module ActiveRecord
         undef :test_automatic_reconnect= # or does automatic_reconnect make sense?
 
         undef :test_removing_releases_latch
+
+        def test_uses_false_pool_and_can_execute_query
+          assert_instance_of ActiveRecord::Bogacs::FalsePool, ActiveRecord::Base.connection_pool
+          assert ActiveRecord::Base.connection.exec_query('SELECT 42')
+        end
 
         # @override
         def test_remove_connection
@@ -92,7 +109,7 @@ module ActiveRecord
         def test_full_pool_exception
           # ~ pool_size.times { pool.checkout }
           threads_ready = Queue.new; threads_block = Atomic.new(0); threads = []
-          pool_size.times do |i|
+          max_pool_size.times do |i|
             threads << Thread.new do
               begin
                 conn = ActiveRecord::Base.connection
@@ -108,7 +125,7 @@ module ActiveRecord
               end
             end
           end
-          pool_size.times { threads_ready.pop } # awaits
+          max_pool_size.times { threads_ready.pop } # awaits
 
           assert_raise(ConnectionTimeoutError) do
             ActiveRecord::Base.connection # ~ pool.checkout
@@ -136,7 +153,7 @@ module ActiveRecord
           end
 
           threads_ready = Queue.new; threads_block = Atomic.new(0); threads = []
-          (pool_size - 1).times do |i|
+          (max_pool_size - 1).times do |i|
             threads << Thread.new do
               begin
                 conn = ActiveRecord::Base.connection
@@ -152,7 +169,7 @@ module ActiveRecord
               end
             end
           end
-          (pool_size - 1).times { threads_ready.pop } # awaits
+          (max_pool_size - 1).times { threads_ready.pop } # awaits
 
           connection = t1_ready.pop
           t1_jdbc_connection = connection.jdbc_connection(true)
@@ -189,9 +206,45 @@ module ActiveRecord
           threads && threads.each(&:join)
         end
 
-        private
+      end
 
-        def pool_size; @@data_source.max_active end
+      class ConnectionPoolWrappingTomcatJdbcDataSourceTest < TestBase
+        include ConnectionPoolWrappingDataSourceTestMethods
+
+        def self.build_data_source(config)
+          build_tomcat_jdbc_data_source(config)
+        end
+
+        def self.jndi_name; 'jdbc/TestTomcatJdbcDB' end
+
+        def self.close_data_source
+          @@data_source.send(:close, true) if @@data_source
+        end
+
+        def max_pool_size; @@data_source.max_active end
+
+        def teardown
+          self.class.close_data_source
+        end
+
+      end
+
+      class ConnectionPoolWrappingC3P0DataSourceTest < TestBase
+        include ConnectionPoolWrappingDataSourceTestMethods
+
+        def self.build_data_source(config)
+          build_c3p0_data_source(config)
+        end
+
+        def self.jndi_name; 'jdbc/TestC3P0DB' end
+
+        def max_pool_size; @@data_source.max_pool_size end
+
+        def teardown
+          self.class.close_data_source # @@data_source = nil
+
+          self.class.establish_jndi_connection # for next test
+        end
 
       end
 

@@ -19,6 +19,7 @@ ENV['DB_POOL_SHARED'] ||= 0.5.to_s
 #   e.g. 40 - ( 40 * 0.75 ) * 5 = 160
 
 require 'active_record'
+require 'arjdbc' if defined? JRUBY_VERSION
 
 require 'logger'
 ActiveRecord::Base.logger = Logger.new(STDOUT)
@@ -40,6 +41,7 @@ config[:'password'] = ENV['AR_PASSWORD'] if ENV['AR_PASSWORD']
 if url = ENV['AR_URL'] || ENV['JDBC_URL']
   config[:'url'] = url
 else
+  config[:'host'] = ENV['AR_HOST'] || 'localhost'
   config[:'database'] = ENV['AR_DATABASE'] || 'ar_basin'
 end
 
@@ -211,7 +213,9 @@ module ActiveRecord
 
     module JndiTestHelper
 
-      def setup_jdbc_context
+      @@setup_jdbc_context = nil
+
+      def setup_jdbc_context!
         load 'test/jars/tomcat-juli.jar'
         load 'test/jars/tomcat-catalina.jar'
 
@@ -231,18 +235,23 @@ module ActiveRecord
         end
       end
 
-      def init_tomcat_jdbc_data_source(ar_jdbc_config = AR_CONFIG)
+      def setup_jdbc_context
+        @@setup_jdbc_context || setup_jdbc_context!
+        @@setup_jdbc_context = true
+      end
+
+      def build_tomcat_jdbc_data_source(ar_jdbc_config = AR_CONFIG)
         load 'test/jars/tomcat-jdbc.jar'
 
         data_source = org.apache.tomcat.jdbc.pool.DataSource.new
-        configure_dbcp_data_source_attributes(data_source, ar_jdbc_config)
+        configure_dbcp_data_source(data_source, ar_jdbc_config)
 
         data_source.setJmxEnabled false
 
         data_source
       end
 
-      def configure_dbcp_data_source_attributes(data_source, ar_jdbc_config)
+      def configure_dbcp_data_source(data_source, ar_jdbc_config)
         unless driver = ar_jdbc_config[:driver]
           jdbc_driver_module.load_driver
           driver = jdbc_driver_module.driver_name
@@ -275,11 +284,56 @@ module ActiveRecord
         #data_source.setRemoveAbandoned false
         #data_source.setLogAbandoned true
       end
-      private :configure_dbcp_data_source_attributes
+      private :configure_dbcp_data_source
+
+      def build_c3p0_data_source(ar_jdbc_config = AR_CONFIG)
+        Dir.glob('test/jars/{c3p0,mchange-commons}*.jar').each { |jar| load jar }
+
+        data_source = com.mchange.v2.c3p0.ComboPooledDataSource.new
+        configure_c3p0_data_source(data_source, ar_jdbc_config)
+
+        data_source
+      end
+
+      def configure_c3p0_data_source(data_source, ar_jdbc_config)
+        unless driver = ar_jdbc_config[:driver]
+          jdbc_driver_module.load_driver
+          driver = jdbc_driver_module.driver_name
+        end
+
+        data_source.setDriverClass driver
+        data_source.setJdbcUrl ar_jdbc_config[:url]
+        if user = ar_jdbc_config[:username]
+          # data_source.setUser user # WTF C3P0
+          data_source.setOverrideDefaultUser user
+        end
+        data_source.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
+
+        if ar_jdbc_config[:properties]
+          properties = java.util.Properties.new
+          properties.putAll ar_jdbc_config[:properties]
+          data_source.setProperties properties
+        end
+        # JDBC pool tunings (some mapped from AR configuration) :
+        if ar_jdbc_config[:pool] # default is 100
+          data_source.setMaxPoolSize ar_jdbc_config[:pool].to_i
+          if prefill = ar_jdbc_config[:pool_prefill]
+            data_source.setInitialPoolSize prefill.to_i
+          end
+        end
+        checkout_timeout = ar_jdbc_config[:checkout_timeout] || 5
+        data_source.setCheckoutTimeout checkout_timeout * 1000
+
+        data_source.setAcquireIncrement 1 # default 3
+        data_source.setAcquireRetryAttempts 3 # default 30
+        data_source.setAcquireRetryDelay 1000 # default 1000
+        data_source.setNumHelperThreads 2 # default 3
+      end
+      private :configure_c3p0_data_source
 
       def bind_data_source(data_source, jndi_name = jndi_config[:jndi])
         load_driver
-        javax.naming.InitialContext.new.bind jndi_name, data_source
+        javax.naming.InitialContext.new.rebind jndi_name, data_source
       end
 
       def load_driver
@@ -289,6 +343,7 @@ module ActiveRecord
       def jdbc_driver_module
         driver = jndi_config[:adapter]
         driver = 'postgres' if driver == 'postgresql'
+        driver = 'mysql'    if driver == 'mysql2'
         require "jdbc/#{driver}"
         ::Jdbc.const_get ::Jdbc.constants.first
       end
