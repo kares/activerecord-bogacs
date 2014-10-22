@@ -236,6 +236,27 @@ module ActiveRecord
           build_c3p0_data_source(config)
         end
 
+        def self.jndi_config
+          config = super
+          config[:connection_alive_sql] = 'SELECT 1' if old_c3p0?
+          config
+        end
+
+        def self.old_c3p0?
+          if c3p0_jar = $CLASSPATH.find { |jar| jar =~ /c3p0/ }
+            if match = File.basename(c3p0_jar).match(/c3p0\-(.*).jar/)
+              return true if match[1] <= '0.9.2.1'
+            end
+            return false
+          end
+          nil
+        end
+
+        def test_full_pool_blocks
+          return if self.class.old_c3p0?
+          super
+        end
+
         def self.jndi_name; 'jdbc/TestC3P0DB' end
 
         def max_pool_size; @@data_source.max_pool_size end
