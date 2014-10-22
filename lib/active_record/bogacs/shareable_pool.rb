@@ -35,15 +35,14 @@ module ActiveRecord
 
       # @override
       def connection
-        # TODO we assume here a single pool - multiple pool support not implemented!
-        Thread.current[:shared_pool_connection] || begin # super - simplified :
+        Thread.current[shared_connection_key] || begin # super - simplified :
           super # @reserved_connections.compute_if_absent(current_connection_id) { checkout }
         end
       end
 
       # @override
       def active_connection?
-        if shared_conn = Thread.current[:shared_pool_connection]
+        if shared_conn = Thread.current[shared_connection_key]
           return shared_conn.in_use?
         end
         super_active_connection? current_connection_id
@@ -99,8 +98,9 @@ module ActiveRecord
       # Custom API :
 
       def release_shared_connection(connection)
-        if connection == Thread.current[:shared_pool_connection]
-          Thread.current[:shared_pool_connection] = nil
+        shared_conn_key = shared_connection_key
+        if connection == Thread.current[shared_conn_key]
+          Thread.current[shared_conn_key] = nil
         end
 
         @shared_connections.delete(connection)
@@ -108,8 +108,9 @@ module ActiveRecord
       end
 
       def with_shared_connection
+        shared_conn_key = shared_connection_key
         # with_shared_connection call nested in the same thread
-        if connection = Thread.current[:shared_pool_connection]
+        if connection = Thread.current[shared_conn_key]
           emulated_checkout(connection)
           return yield connection
         end
@@ -142,12 +143,12 @@ module ActiveRecord
             shared = true
           end
 
-          Thread.current[:shared_pool_connection] = connection if shared
+          Thread.current[shared_conn_key] = connection if shared
 
           DEBUG && debug("with_shared_conn obtaining a connection took #{(Time.now - start) * 1000}ms")
           yield connection
         ensure
-          Thread.current[:shared_pool_connection] = nil # if shared
+          Thread.current[shared_conn_key] = nil # if shared
           rem_shared_connection(connection) if shared
         end
       end
@@ -244,6 +245,10 @@ module ActiveRecord
       def emulated_checkout(connection)
         # NOTE: not sure we'd like to run `run_callbacks :checkout {}` here ...
         connection.lease; # connection.verify! auto-reconnect should do this
+      end
+
+      def shared_connection_key
+        @shared_connection_key ||= :"shared_pool_connection##{object_id}"
       end
 
       DEBUG = begin
