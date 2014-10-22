@@ -17,7 +17,7 @@ before_script:
   - export JAVA_OPTS="$JAVA_OPTS" # -Xmx600M
   - echo "JAVA_OPTS: $JAVA_OPTS"
 script:
-  - bundle exec rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download
+  - bundle exec rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download c3p0:download
   - bundle exec rake db:create:mysql db:create:postgresql
 env:
   - JRUBY_OPTS="--1.8 $JRUBY_OPTS" AR_ADAPTER=mysql

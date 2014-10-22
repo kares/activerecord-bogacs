@@ -71,6 +71,22 @@ def _which(cmd)
   nil
 end
 
+def _download(uri, download_dir, as_file_name)
+  require 'open-uri'; require 'tmpdir'
+
+  temp_dir = File.join(Dir.tmpdir, (Time.now.to_f * 1000).to_i.to_s)
+  FileUtils.mkdir temp_dir
+
+  Dir.chdir(temp_dir) do
+    FileUtils.mkdir download_dir unless File.exist?(download_dir)
+    puts "downloading #{uri}"
+    file = open(uri)
+    FileUtils.cp file.path, File.join(download_dir, as_file_name)
+  end
+
+  FileUtils.rm_r temp_dir
+end
+
 namespace :tomcat do
 
   tomcat_maven_repo = 'http://repo2.maven.org/maven2/org/apache/tomcat'
@@ -87,19 +103,7 @@ namespace :tomcat do
 
         uri = "#{tomcat_maven_repo}/#{tomcat_pool}/#{version}/#{tomcat_pool}-#{version}.jar"
 
-        require 'open-uri'; require 'tmpdir'
-
-        temp_dir = File.join(Dir.tmpdir, (Time.now.to_f * 1000).to_i.to_s)
-        FileUtils.mkdir temp_dir
-
-        Dir.chdir(temp_dir) do
-          FileUtils.mkdir download_dir unless File.exist?(download_dir)
-          puts "downloading #{uri}"
-          file = open(uri)
-          FileUtils.cp file.path, File.join(download_dir, tomcat_pool_jar)
-        end
-
-        FileUtils.rm_r temp_dir
+        _download(uri, download_dir, tomcat_pool_jar)
       end
 
       task :check do
@@ -162,6 +166,41 @@ namespace :tomcat do
       rm jar_path if File.exist?(jar_path)
     end
 
+  end
+
+end
+
+namespace :c3p0 do
+
+  mchange_base_repo = 'http://repo2.maven.org/maven2/com/mchange'
+  download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
+  c3p0_version = '0.9.2.1'
+  mchange_commons_version = '0.2.3.4'
+
+  c3p0_jar = "c3p0-#{c3p0_version}.jar"
+  mchange_commons_jar = "mchange-commons-java-#{mchange_commons_version}.jar"
+
+  task :download, :version do |_,args| # rake c3p0:download
+    # version = args[:version] || version_default
+
+    uri = "#{mchange_base_repo}/mchange-commons-java/#{mchange_commons_version}/#{mchange_commons_jar}"
+
+    _download(uri, download_dir, mchange_commons_jar)
+
+    uri = "#{mchange_base_repo}/c3p0/#{c3p0_version}/#{c3p0_jar}"
+
+    _download(uri, download_dir, c3p0_jar)
+  end
+
+  task :check do
+    jar_path = File.join(download_dir, c3p0_jar)
+    unless File.exist?(jar_path)
+      Rake::Task["c3p0:download"].invoke
+    end
+  end
+
+  task :clear do
+    Dir.glob( File.join(download_dir, '{c3p0,mchange-commons}*.jar') ).each { |jar| rm jar }
   end
 
 end
