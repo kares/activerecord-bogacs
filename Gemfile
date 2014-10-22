@@ -16,7 +16,21 @@ else
   gem 'activerecord', :require => nil
 end
 
-gem 'activerecord-jdbc-adapter', :require => nil, :platform => :jruby
+platform :jruby do
+  if version = ENV['AR_JDBC_VERSION']
+    if version.index('/') && ::File.exist?(version)
+      gem 'activerecord-jdbc-adapter', :path => version
+    elsif version =~ /^[0-9abcdef]+$/
+      gem 'activerecord-jdbc-adapter', :github => 'jruby/activerecord-jdbc-adapter', :ref => version
+    elsif version.index('.').nil?
+      gem 'activerecord-jdbc-adapter', :github => 'jruby/activerecord-jdbc-adapter', :branch => version
+    else
+      gem 'activerecord-jdbc-adapter', version, :require => nil
+    end
+  else
+    gem 'activerecord-jdbc-adapter', :require => nil
+  end
+end
 
 #gem 'thread_safe', :require => nil # "optional" - we can roll without it
 
