@@ -160,7 +160,7 @@ module ActiveRecord
         def test_does_not_use_more_shared_connections_than_configured_shared_size
           shared_conn_threads = {}
           begin
-            block_connections_in_threads(2) do # only 2 connections left
+            block_connections_in_threads(4) do # 6 (out of 10) connections left
 
               shared_conn_threads = start_shared_connection_threads(7, :wait)
 
@@ -170,6 +170,7 @@ module ActiveRecord
                 assert shared_connection?(conn)
                 conn
               end
+              
               assert_equal 5, shared_conns.uniq.size
 
               # still one left for normal connections :
@@ -290,7 +291,7 @@ module ActiveRecord
         protected
 
         def current_shared_pool_connection
-          Thread.current[:shared_pool_connection]
+          Thread.current[ connection_pool.send(:shared_connection_key) ]
         end
 
         def set_pool_size(size, shared_size = nil)
