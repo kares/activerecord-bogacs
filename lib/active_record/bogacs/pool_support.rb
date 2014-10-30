@@ -13,7 +13,8 @@ module ActiveRecord
       end
 
       def current_connection_id
-        Base.connection_id ||= Thread.current.object_id # TODO
+        # NOTE: possible fiber work-around on JRuby ?!
+        Base.connection_id ||= Thread.current.object_id
       end
 
       # @note Method not part of the pre 4.0 API (does no exist).
