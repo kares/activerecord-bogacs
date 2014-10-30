@@ -12,10 +12,24 @@ module ActiveRecord
 
         if method_defined? :in_use?
 
-          def lease
-            unless in_use?
-              @owner = Thread.current; @in_use = true
+          if method_defined? :last_use
+
+            def lease
+              unless in_use?
+                @owner = Thread.current
+                @in_use = true; @last_use = Time.now
+              end
             end
+
+          else
+
+            def lease
+              unless in_use?
+                @owner = Thread.current
+                @in_use = true
+              end
+            end
+
           end
 
           def expire
@@ -36,18 +50,6 @@ module ActiveRecord
             @owner = nil
           end
 
-        end
-
-        alias :in_use? :owner
-
-        def lease
-          unless in_use?
-            @owner = Thread.current
-          end
-        end
-
-        def expire
-          @owner = nil
         end
 
       end
