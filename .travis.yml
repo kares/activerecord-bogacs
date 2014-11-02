@@ -16,7 +16,8 @@ before_script:
   - export JRUBY_OPTS="--server -Xcext.enabled=false -Xcompile.invokedynamic=false"
   - export JAVA_OPTS="$JAVA_OPTS" # -Xmx600M
 script:
-  - bundle exec rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download c3p0:download
+  - bundle exec rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download
+  - bundle exec rake c3p0:download hikari:download
   - bundle exec rake db:create:mysql db:create:postgresql
 env:
   - JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 4.1.6"
