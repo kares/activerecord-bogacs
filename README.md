@@ -1,12 +1,12 @@
 # ActiveRecord::Bogacs
 
-ActiveRecord pooling "hacks" ... in a relaxed 'spa' fashion!
+ActiveRecord (all-year) pooling "alternatives" ... in a relaxed 'spa' fashion.
 
 ![Bogacs][0]
 
 Bogács is a village in Borsod-Abaúj-Zemplén county, Hungary.
 
-**WiP: don't even thing about putting this on production (TEST IT OUT FIRST)!**
+**WiP: do not put this on production if you do not understand the consequences!**
 
 ## Install
 
@@ -34,7 +34,7 @@ module MyApp
   end
 end
 
-# sample configuration using the "false" pool
+# sample AR-Bogacs setup using the "false" pool :
 if Rails.env.production?
   pool_class = ActiveRecord::Bogacs::FalsePool
   ActiveRecord::ConnectionAdapters::ConnectionHandler.connection_pool_class = pool_class
@@ -50,13 +50,13 @@ facing potential (pool related) concurrency bugs e.g. with high-loads under JRub
 
 Based on pool code from 4.x (which works much better than any previous version),
 with a few minor tunings and extensions such as `pool_initial: 0.5` which allows
-to specify how many connections to prefill when the pool is created.
+to specify how many connections to initialize in advance when the pool is created.
 
 ### False Pool
 
-The false pool won't do any actual pooling, it is assumes that an underlying pool
-is configured. But it does maintain a cache of AR connections mapped to threads.
-Ignores all pool related configuration `pool: 42`, `checkout_timeout: 2.5` etc.
+The false pool won't do any actual pooling, it is assumed that an underlying pool
+is configured. Still, it does maintain a hash of AR connections mapped to threads.
+Ignores pool related configurations such as `pool: 42` or `checkout_timeout: 2.5`.
 
 **NOTE:** be sure to configure an underlying pool e.g. with Trinidad (using the
 default Tomcat JDBC pool) :
@@ -74,7 +74,7 @@ default Tomcat JDBC pool) :
       initialSize: <%= ENV['POOL_INITIAL'] || 25 %> # connections created on start
       maxActive: <%= ENV['POOL_SIZE'] || 100 %> # default 100 (AR pool: size)
       maxIdle: <%= ENV['POOL_SIZE'] || 100 %> # max connections kept in the pool
-      minIdle: <%= ENV['POOL_SIZE'] || 50 %>
+      minIdle: <%= ENV['POOL_INITIAL'] || 50 %>
       # idle connections are checked periodically (if enabled) and connections
       # that been idle for longer than minEvictableIdleTimeMillis will be released
       minEvictableIdleTimeMillis: <%= 3 * 60 * 1000 %> # default 60s
@@ -91,8 +91,7 @@ production:
   jndi: java:/comp/env/jdbc/BogacsDB
 ```
 
-**NOTE:** using the `FalsePool` there's nothing to configure (in *database.yml*)
-that is `no_pool: 5` or `checkout_timeout: 5` defaults!
+**NOTE:** when using `FalsePool` there's nothing to configure (in *database.yml*)!
 
 ### Shareable Pool
 
