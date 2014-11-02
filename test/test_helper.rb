@@ -331,6 +331,75 @@ module ActiveRecord
       end
       private :configure_c3p0_data_source
 
+
+      def build_hikari_data_source(ar_jdbc_config = AR_CONFIG)
+        Dir.glob('test/jars/{javassist,slf4j,HikariCP}*.jar').each { |jar| load jar }
+
+        configure_hikari_data_source(ar_jdbc_config)
+      end
+
+      def configure_hikari_data_source(ar_jdbc_config)
+        hikari_config = com.zaxxer.hikari.HikariConfig.new
+
+        unless driver = ar_jdbc_config[:driver]
+          jdbc_driver_module.load_driver
+          driver = jdbc_driver_module.driver_name
+        end
+
+        case driver
+        when /mysql/i
+          hikari_config.setDataSourceClassName 'com.mysql.jdbc.jdbc2.optional.MysqlDataSource'
+          hikari_config.addDataSourceProperty 'serverName', ar_jdbc_config[:host] || 'localhost'
+          hikari_config.addDataSourceProperty 'databaseName', ar_jdbc_config[:database]
+          hikari_config.addDataSourceProperty 'port', ar_jdbc_config[:port] if ar_jdbc_config[:port]
+          if true
+            hikari_config.addDataSourceProperty 'user', ar_jdbc_config[:username] || 'root'
+          end
+          if ar_jdbc_config[:password]
+            hikari_config.addDataSourceProperty 'password', ar_jdbc_config[:password]
+          end
+        when /postgres/i
+          hikari_config.setDataSourceClassName 'org.postgresql.ds.PGSimpleDataSource'
+          hikari_config.addDataSourceProperty 'serverName', ar_jdbc_config[:host] || 'localhost'
+          hikari_config.addDataSourceProperty 'databaseName', ar_jdbc_config[:database]
+          hikari_config.addDataSourceProperty 'port', ar_jdbc_config[:port] if ar_jdbc_config[:port]
+          if ar_jdbc_config[:username]
+            hikari_config.addDataSourceProperty 'user', ar_jdbc_config[:username]
+          end
+          if ar_jdbc_config[:password]
+            hikari_config.addDataSourceProperty 'password', ar_jdbc_config[:password]
+          end
+        else
+          hikari_config.setDriverClassName driver
+          hikari_config.setJdbcUrl ar_jdbc_config[:url]
+          hikari_config.setUsername ar_jdbc_config[:username] if ar_jdbc_config[:username]
+          hikari_config.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
+        end
+
+        # TODO: we shall handle raw properties ?!
+        #if ar_jdbc_config[:properties]
+        #  properties = java.util.Properties.new
+        #  properties.putAll ar_jdbc_config[:properties]
+        #  hikari_config.setProperties properties
+        #end
+
+        # JDBC pool tunings (some mapped from AR configuration) :
+        if ar_jdbc_config[:pool] # default is 100
+          hikari_config.setMaximumPoolSize ar_jdbc_config[:pool].to_i
+          if prefill = ar_jdbc_config[:pool_prefill]
+            hikari_config.setMinConnectionsPerPartition prefill.to_i
+          end
+        end
+
+        checkout_timeout = ar_jdbc_config[:checkout_timeout] || 5
+        hikari_config.setConnectionTimeout checkout_timeout * 1000
+
+        hikari_config.setLeakDetectionThreshold 30 * 1000 # default 10s
+
+        com.zaxxer.hikari.HikariDataSource.new hikari_config
+      end
+      private :configure_hikari_data_source
+
       def bind_data_source(data_source, jndi_name = jndi_config[:jndi])
         load_driver
         javax.naming.InitialContext.new.rebind jndi_name, data_source
