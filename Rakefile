@@ -195,15 +195,46 @@ namespace :c3p0 do
     _download(uri, download_dir, c3p0_jar)
   end
 
-  task :check do
-    jar_path = File.join(download_dir, c3p0_jar)
-    unless File.exist?(jar_path)
-      Rake::Task["c3p0:download"].invoke
-    end
+  task :clear do
+    Dir.glob( File.join(download_dir, '{c3p0,mchange-commons}*.jar') ).each { |jar| rm jar }
+  end
+
+end
+
+namespace :hikari do
+
+  hikari_base_repo = 'http://repo2.maven.org/maven2/com/zaxxer'
+  slf4j_base_repo = 'http://repo2.maven.org/maven2/org/slf4j'
+  javassist_base_repo = 'http://repo2.maven.org/maven2/org/javassist'
+  download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
+  hikari_version = '1.3.9'
+  slf4j_version = '1.7.7'
+  javassist_version = '3.18.2-GA'
+
+  slf4j_api_jar = "slf4j-api-#{slf4j_version}.jar"
+  slf4j_simple_jar = "slf4j-simple-#{slf4j_version}.jar"
+  javassist_jar = "javassist-#{javassist_version}.jar"
+
+  task :download, :version do |_,args| # rake c3p0:download
+    version = args[:version] || hikari_version
+
+    hikari_jar = "HikariCP-#{hikari_version}.jar"
+
+    uri = "#{hikari_base_repo}/HikariCP/#{version}/#{hikari_jar}"
+    _download(uri, download_dir, hikari_jar)
+
+    uri = "#{slf4j_base_repo}/slf4j-api/#{slf4j_version}/#{slf4j_api_jar}"
+    _download(uri, download_dir, slf4j_api_jar)
+
+    uri = "#{slf4j_base_repo}/slf4j-simple/#{slf4j_version}/#{slf4j_simple_jar}"
+    _download(uri, download_dir, slf4j_simple_jar)
+
+    uri = "#{javassist_base_repo}/javassist/#{javassist_version}/#{javassist_jar}"
+    _download(uri, download_dir, javassist_jar)
   end
 
   task :clear do
-    Dir.glob( File.join(download_dir, '{c3p0,mchange-commons}*.jar') ).each { |jar| rm jar }
+    Dir.glob( File.join(download_dir, '{HikariCP,slf4j}*.jar') ).each { |jar| rm jar }
   end
 
 end
