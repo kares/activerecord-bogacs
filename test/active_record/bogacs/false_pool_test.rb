@@ -54,14 +54,20 @@ module ActiveRecord
         end
 
         def self.establish_jndi_connection
-          init_data_source
+          if ActiveRecord::Base.connected?
+            ActiveRecord::Base.clear_all_connections!
+            close_data_source
+          end
 
+          init_data_source
           ActiveRecord::Base.establish_connection jndi_config
         end
 
         def self.close_data_source
           @@data_source.close if @@data_source
         end
+
+        def data_source; @@data_source end
 
       end
 
@@ -262,8 +268,38 @@ module ActiveRecord
         def max_pool_size; @@data_source.max_pool_size end
 
         def teardown
-          self.class.close_data_source # @@data_source = nil
+          # self.class.close_data_source # @@data_source = nil
+          self.class.establish_jndi_connection # for next test
+        end
 
+      end
+
+      class ConnectionPoolWrappingHikariDataSourceTest < TestBase
+        include ConnectionPoolWrappingDataSourceTestMethods
+
+        def self.build_data_source(config)
+          data_source = build_hikari_data_source(config)
+
+          com.zaxxer.hikari.HikariDataSource.class_eval do
+            field_reader :pool unless method_defined? :pool
+          end
+          com.zaxxer.hikari.pool.HikariPool.class_eval do
+            field_reader :isShutdown unless method_defined? :isShutdown
+          end
+
+          data_source
+        end
+
+        def self.jndi_name; 'jdbc/TestHikariDB' end
+
+        def max_pool_size; @@data_source.maximum_pool_size end
+
+
+        def self.close_data_source
+          @@data_source.shutdown if @@data_source
+        end
+
+        def teardown
           self.class.establish_jndi_connection # for next test
         end
 
