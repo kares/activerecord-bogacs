@@ -208,7 +208,7 @@ namespace :hikari do
   javassist_base_repo = 'http://repo2.maven.org/maven2/org/javassist'
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
   hikari_version = '1.3.9'
-  slf4j_version = '1.7.7'
+  slf4j_version = '1.7.10'
   javassist_version = '3.18.2-GA'
 
   slf4j_api_jar = "slf4j-api-#{slf4j_version}.jar"
@@ -234,7 +234,7 @@ namespace :hikari do
   end
 
   task :clear do
-    Dir.glob( File.join(download_dir, '{HikariCP,slf4j}*.jar') ).each { |jar| rm jar }
+    Dir.glob( File.join(download_dir, '{HikariCP,slf4j,javassist}*.jar') ).each { |jar| rm jar }
   end
 
 end
