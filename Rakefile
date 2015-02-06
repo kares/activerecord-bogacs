@@ -220,9 +220,15 @@ namespace :hikari do
   task :download, :version do |_,args| # rake c3p0:download
     version = args[:version] || ENV['HIKARI_VERSION'] || hikari_version
 
-    hikari_jar = "HikariCP-#{version}.jar"
+    version = version.dup
+    if version.sub!('-java6', '') # e.g. '2.3.2-java6'
+      hikari_jar = "HikariCP-java6-#{version}.jar"
+      uri = "#{hikari_base_repo}/HikariCP-java6/#{version}/#{hikari_jar}"
+    else
+      hikari_jar = "HikariCP-#{version}.jar"
+      uri = "#{hikari_base_repo}/HikariCP/#{version}/#{hikari_jar}"
+    end
 
-    uri = "#{hikari_base_repo}/HikariCP/#{version}/#{hikari_jar}"
     _download(uri, download_dir, hikari_jar)
 
     uri = "#{slf4j_base_repo}/slf4j-api/#{slf4j_version}/#{slf4j_api_jar}"
