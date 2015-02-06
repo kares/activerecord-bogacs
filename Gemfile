@@ -16,6 +16,10 @@ else
   gem 'activerecord', :require => nil
 end
 
+if RUBY_VERSION.index('1.8') == 0
+  gem 'i18n', '< 0.7.0' # Gem::InstallError: i18n requires Ruby version >= 1.9.3
+end
+
 platform :jruby do
   if version = ENV['AR_JDBC_VERSION']
     if version.index('/') && ::File.exist?(version)
