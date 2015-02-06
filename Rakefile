@@ -102,7 +102,8 @@ namespace :tomcat do
       tomcat_pool_jar = "#{tomcat_pool}.jar"
 
       task :download, :version do |_,args| # rake tomcat:jdbc:download[7.0.54]
-        version = args[:version] || version_default
+        env_key = "#{tomcat_pool.upcase.sub('-', '_')}_VERSION" # 'TOMCAT_JDBC_VERSION'
+        version = args[:version] || ENV[env_key] || version_default
 
         uri = "#{tomcat_maven_repo}/#{tomcat_pool}/#{version}/#{tomcat_pool}-#{version}.jar"
 
@@ -180,17 +181,18 @@ namespace :c3p0 do
   c3p0_version = '0.9.5-pre9'
   mchange_commons_version = '0.2.8'
 
-  c3p0_jar = "c3p0-#{c3p0_version}.jar"
   mchange_commons_jar = "mchange-commons-java-#{mchange_commons_version}.jar"
 
   task :download, :version do |_,args| # rake c3p0:download
-    # version = args[:version] || version_default
+    version = args[:version] || ENV['C3P0_VERSION'] || c3p0_version
+
+    c3p0_jar = "c3p0-#{version}.jar"
 
     uri = "#{mchange_base_repo}/mchange-commons-java/#{mchange_commons_version}/#{mchange_commons_jar}"
 
     _download(uri, download_dir, mchange_commons_jar)
 
-    uri = "#{mchange_base_repo}/c3p0/#{c3p0_version}/#{c3p0_jar}"
+    uri = "#{mchange_base_repo}/c3p0/#{version}/#{c3p0_jar}"
 
     _download(uri, download_dir, c3p0_jar)
   end
@@ -207,7 +209,7 @@ namespace :hikari do
   slf4j_base_repo = 'http://repo2.maven.org/maven2/org/slf4j'
   javassist_base_repo = 'http://repo2.maven.org/maven2/org/javassist'
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
-  hikari_version = '1.3.9'
+  hikari_version = '1.4.0'
   slf4j_version = '1.7.10'
   javassist_version = '3.18.2-GA'
 
@@ -216,9 +218,9 @@ namespace :hikari do
   javassist_jar = "javassist-#{javassist_version}.jar"
 
   task :download, :version do |_,args| # rake c3p0:download
-    version = args[:version] || hikari_version
+    version = args[:version] || ENV['HIKARI_VERSION'] || hikari_version
 
-    hikari_jar = "HikariCP-#{hikari_version}.jar"
+    hikari_jar = "HikariCP-#{version}.jar"
 
     uri = "#{hikari_base_repo}/HikariCP/#{version}/#{hikari_jar}"
     _download(uri, download_dir, hikari_jar)
