@@ -178,8 +178,8 @@ namespace :c3p0 do
 
   mchange_base_repo = 'http://repo2.maven.org/maven2/com/mchange'
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
-  c3p0_version = '0.9.5-pre9'
-  mchange_commons_version = '0.2.8'
+  c3p0_version = '0.9.5'
+  mchange_commons_version = '0.2.9'
 
   mchange_commons_jar = "mchange-commons-java-#{mchange_commons_version}.jar"
 
