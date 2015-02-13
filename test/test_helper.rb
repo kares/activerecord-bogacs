@@ -251,6 +251,28 @@ module ActiveRecord
         data_source
       end
 
+      def build_tomcat_dbcp_data_source(ar_jdbc_config = AR_CONFIG)
+        load 'test/jars/tomcat-dbcp.jar'
+
+        data_source = org.apache.tomcat.dbcp.dbcp.BasicDataSource.new
+        configure_dbcp_data_source(data_source, ar_jdbc_config)
+
+        data_source.setAccessToUnderlyingConnectionAllowed true
+
+        data_source
+      end
+
+      def build_commons_dbcp_data_source(ar_jdbc_config = AR_CONFIG)
+        load Dir.glob('test/jars/{commons-dbcp}*.jar').first
+
+        data_source = org.apache.tomcat.dbcp.dbcp.BasicDataSource.new
+        configure_dbcp_data_source(data_source, ar_jdbc_config)
+
+        data_source.setAccessToUnderlyingConnectionAllowed true
+
+        data_source
+      end
+
       def configure_dbcp_data_source(data_source, ar_jdbc_config)
         unless driver = ar_jdbc_config[:driver]
           jdbc_driver_module.load_driver
@@ -261,10 +283,18 @@ module ActiveRecord
         data_source.setUrl ar_jdbc_config[:url]
         data_source.setUsername ar_jdbc_config[:username] if ar_jdbc_config[:username]
         data_source.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
-        if ar_jdbc_config[:properties]
-          properties = java.util.Properties.new
-          properties.putAll ar_jdbc_config[:properties]
-          data_source.setDbProperties properties
+        if properties = ar_jdbc_config[:properties]
+          if data_source.respond_to?(:setDbProperties) # TC-JDBC
+            db_properties = java.util.Properties.new
+            properties.each { |name, value| db_properties.put(name, value.to_s) }
+            data_source.setDbProperties db_properties
+          else # Tomcat-DBCP / Commons DBCP2
+            # format of the string must be: [propertyName=property;]
+            connection_properties = properties.inject('') do
+              |str, name, val| str << "[#{name}=#{val};]"; str
+            end
+            data_source.setConnectionProperties connection_properties
+          end
         end
         # JDBC pool tunings (some mapped from AR configuration) :
         if ar_jdbc_config[:pool] # default is 100

@@ -178,7 +178,7 @@ module ActiveRecord
           (max_pool_size - 1).times { threads_ready.pop } # awaits
 
           connection = t1_ready.pop
-          t1_jdbc_connection = connection.jdbc_connection(true)
+          t1_jdbc_connection = unwrap_connection(connection)
 
           # pool = ActiveRecord::Base.connection_pool
 
@@ -202,7 +202,7 @@ module ActiveRecord
 
           if defined? JRUBY_VERSION
             if connection2 = t2.join.value
-              assert_equal t1_jdbc_connection, connection2.jdbc_connection(true)
+              assert_equal t1_jdbc_connection, unwrap_connection(connection2)
             end
           end
 
@@ -210,6 +210,12 @@ module ActiveRecord
           #connection && connection.close
           threads_block && threads_block.swap(-1)
           threads && threads.each(&:join)
+        end
+
+        protected
+
+        def unwrap_connection(connection)
+          connection.jdbc_connection(true)
         end
 
       end
@@ -231,6 +237,62 @@ module ActiveRecord
 
         def teardown
           self.class.close_data_source
+        end
+
+      end
+
+      class ConnectionPoolWrappingTomcatDbcpDataSourceTest < TestBase
+        include ConnectionPoolWrappingDataSourceTestMethods
+
+        def self.build_data_source(config)
+          build_tomcat_dbcp_data_source(config)
+        end
+
+        def self.jndi_name; 'jdbc/TestTomcatDbcpDB' end
+
+        def self.close_data_source
+          @@data_source.close if @@data_source
+        end
+
+        def max_pool_size; @@data_source.max_active end
+
+        def teardown
+          self.class.establish_jndi_connection # for next test
+        end
+
+        protected
+
+        def unwrap_connection(connection)
+          connection = connection.jdbc_connection(true)
+          connection.delegate
+        end
+
+      end
+
+      class ConnectionPoolWrappingDbcpDataSourceTest < TestBase
+        include ConnectionPoolWrappingDataSourceTestMethods
+
+        def self.build_data_source(config)
+          build_tomcat_dbcp_data_source(config)
+        end
+
+        def self.jndi_name; 'jdbc/TestTomcatDbcpDB' end
+
+        def self.close_data_source
+          @@data_source.close if @@data_source
+        end
+
+        def max_pool_size; @@data_source.max_active end
+
+        def teardown
+          self.class.establish_jndi_connection # for next test
+        end
+
+        protected
+
+        def unwrap_connection(connection)
+          connection = connection.jdbc_connection(true)
+          connection.delegate
         end
 
       end
