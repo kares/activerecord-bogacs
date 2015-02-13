@@ -174,6 +174,28 @@ namespace :tomcat do
 
 end
 
+namespace :dbcp do # a.k.a DBCP2
+
+  commons_repo = 'http://repo2.maven.org/maven2/org/apache/commons'
+  download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
+  version_default = '2.0.1'
+
+  task :download, :version do |_,args| # rake dbcp:download
+    version = args[:version] || ENV['DBCP_VERSION'] || version_default
+
+    dbcp_jar = "commons-dbcp2-#{version}.jar"
+
+    uri = "#{commons_repo}/commons-dbcp2/#{version}/#{dbcp_jar}"
+
+    _download(uri, download_dir, dbcp_jar)
+  end
+
+  task :clear do
+    Dir.glob( File.join(download_dir, '{commons-dbcp2}*.jar') ).each { |jar| rm jar }
+  end
+
+end
+
 namespace :c3p0 do
 
   mchange_base_repo = 'http://repo2.maven.org/maven2/com/mchange'
