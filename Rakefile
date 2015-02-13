@@ -94,7 +94,7 @@ namespace :tomcat do
 
   tomcat_maven_repo = 'http://repo2.maven.org/maven2/org/apache/tomcat'
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
-  version_default = '7.0.54'
+  version_default = '7.0.59'
 
   [ 'tomcat-jdbc', 'tomcat-dbcp' ].each do |tomcat_pool|
     namespace tomcat_pool.sub('tomcat-', '') do # rake tomcat:dbcp:download
