@@ -110,6 +110,10 @@ end
 module ActiveRecord
   module Bogacs
 
+    require 'concurrent/atomic'
+
+    Atomic = Concurrent::Atomic
+
     module TestHelper
 
       def _test_name

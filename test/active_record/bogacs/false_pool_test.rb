@@ -1,7 +1,5 @@
 require File.expand_path('../../test_helper', File.dirname(__FILE__))
 
-require 'atomic'
-
 ActiveRecord::Bogacs::FalsePool.class_eval do
   # ...
 end

@@ -2,7 +2,16 @@ require 'active_record/connection_adapters/abstract/connection_pool'
 
 require 'thread'
 require 'thread_safe'
-require 'atomic'
+begin
+  require 'atomic'
+rescue LoadError => e
+  begin
+    require 'concurrent/atomic'
+  rescue LoadError
+    warn "shareable pool needs gem 'concurrent-ruby' please install or add it to your Gemfile"
+    raise e
+  end
+end
 
 require 'active_record/bogacs/pool_support'
 
@@ -221,6 +230,12 @@ module ActiveRecord
 
         DEBUG && debug(" get_shared_conn least shared = #{least_shared.to_s}")
         least_shared # might be nil in that case we'll likely wait (as super)
+      end
+
+      if defined? Concurrent::Atomic
+        Atomic = Concurrent::Atomic
+      else
+        Atomic = ::Atomic
       end
 
       def add_shared_connection(connection)
