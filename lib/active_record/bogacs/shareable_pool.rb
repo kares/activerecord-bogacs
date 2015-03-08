@@ -3,10 +3,10 @@ require 'active_record/connection_adapters/abstract/connection_pool'
 require 'thread'
 require 'thread_safe'
 begin
-  require 'atomic'
+  require 'concurrent/atomic'
 rescue LoadError => e
   begin
-    require 'concurrent/atomic'
+    require 'atomic'
   rescue LoadError
     warn "shareable pool needs gem 'concurrent-ruby' please install or add it to your Gemfile"
     raise e
