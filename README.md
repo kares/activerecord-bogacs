@@ -117,7 +117,7 @@ Only tested with ActiveRecord-JDBC-Adapter using the official Postgres' driver.
 
 ## Copyright
 
-Copyright (c) 2014 [Karol Bucek](http://kares.org).
+Copyright (c) 2015 [Karol Bucek](http://kares.org).
 See LICENSE (http://en.wikipedia.org/wiki/MIT_License) for details.
 
 [0]: http://res.cloudinary.com/kares/image/upload/c_scale,h_600,w_800/v1406451696/bogacs.jpg
