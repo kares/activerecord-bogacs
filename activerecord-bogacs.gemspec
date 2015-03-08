@@ -20,7 +20,7 @@ Gem::Specification.new do |gem|
 
   gem.add_runtime_dependency 'thread_safe', '~> 0.3'
 
-  gem.add_development_dependency 'concurrent-ruby', '>= 0.8'
+  gem.add_development_dependency 'concurrent-ruby', '>= 0.8' if RUBY_VERSION.index('1.8') != 0
   gem.add_development_dependency 'rake', '~> 10.3'
   gem.add_development_dependency 'test-unit', '~> 2.5'
 end

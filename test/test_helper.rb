@@ -110,9 +110,13 @@ end
 module ActiveRecord
   module Bogacs
 
-    require 'concurrent/atomic'
-
-    Atomic = Concurrent::Atomic
+    begin
+      require 'concurrent/atomic'
+      Atomic = Concurrent::Atomic
+    rescue LoadError
+      require 'atomic'
+      Atomic = ::Atomic
+    end
 
     module TestHelper
 
