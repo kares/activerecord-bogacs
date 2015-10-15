@@ -279,7 +279,7 @@ module ActiveRecord
       def release_connection(with_id = current_connection_id)
         #synchronize do
           conn = @reserved_connections.delete(with_id)
-          checkin conn if conn
+          checkin conn, true if conn
         #end
       end
 
@@ -381,15 +381,13 @@ module ActiveRecord
       #
       # +conn+: an AbstractAdapter object, which was obtained by earlier by
       # calling +checkout+ on this pool.
-      def checkin(conn)
+      def checkin(conn, released = nil)
         synchronize do
-          owner = conn.owner
-
           conn.run_callbacks :checkin do
             conn.expire
           end
 
-          release owner
+          release conn.owner unless released
 
           @available.add conn
         end
@@ -453,7 +451,6 @@ module ActiveRecord
 
       def release(owner)
         thread_id = owner.object_id
-
         @reserved_connections.delete thread_id
       end
 
