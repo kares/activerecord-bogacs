@@ -3,12 +3,12 @@ require 'active_record/connection_adapters/abstract/connection_pool'
 require 'thread'
 require 'thread_safe'
 begin
-  require 'concurrent/atomic'
+  require 'concurrent/atomic/atomic_reference.rb'
 rescue LoadError => e
   begin
     require 'atomic'
   rescue LoadError
-    warn "shareable pool needs gem 'concurrent-ruby' please install or add it to your Gemfile"
+    warn "shareable pool needs gem 'concurrent-ruby', '>= 0.9.1' please install or add it to your Gemfile"
     raise e
   end
 end
@@ -232,14 +232,14 @@ module ActiveRecord
         least_shared # might be nil in that case we'll likely wait (as super)
       end
 
-      if defined? Concurrent::Atomic
-        Atomic = Concurrent::Atomic
+      if defined? Concurrent::AtomicReference
+        AtomicReference = Concurrent::AtomicReference
       else
-        Atomic = ::Atomic
+        AtomicReference = ::Atomic
       end
 
       def add_shared_connection(connection)
-        @shared_connections[connection] = Atomic.new(1)
+        @shared_connections[connection] = AtomicReference.new(1)
       end
 
       def rem_shared_connection(connection)
