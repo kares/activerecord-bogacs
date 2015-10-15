@@ -29,6 +29,21 @@ task 'db:create:mysql' do
   # puts "... run tests with MySQL using: `AR_ADAPTER=mysql rake test `"
 end
 
+task 'db:drop:mysql' do
+  fail "could not create database: mysql executable not found" unless mysql = _which('mysql')
+  ENV['Rake'] = true.to_s; ENV['AR_ADAPTER'] ||= 'mysql'
+  require File.expand_path('test/test_helper.rb', File.dirname(__FILE__))
+
+  script = "DROP DATABASE `#{AR_CONFIG[:database]}`;"
+  params = { '-u' => 'root' }
+  if ENV['DATABASE_YML']; require 'yaml'
+    password = YAML.load(File.new(ENV['DATABASE_YML']))["production"]["password"]
+    params['--password'] = password
+  end
+  puts "Creating MySQL database: #{AR_CONFIG[:database]}"
+  sh "cat #{_sql_script(script).path} | #{mysql} #{params.to_a.join(' ')}", :verbose => $VERBOSE
+end
+
 desc "Creates a (test) PostgreSQL database"
 task 'db:create:postgresql' do
   fail 'could not create database: psql executable not found' unless psql = _which('psql')
