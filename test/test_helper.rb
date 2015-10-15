@@ -111,8 +111,8 @@ module ActiveRecord
   module Bogacs
 
     begin
-      require 'concurrent/atomic'
-      Atomic = Concurrent::Atomic
+      require 'concurrent/atomic/atomic_reference'
+      Atomic = Concurrent::AtomicReference
     rescue LoadError
       require 'atomic'
       Atomic = ::Atomic
