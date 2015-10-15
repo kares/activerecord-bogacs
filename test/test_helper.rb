@@ -42,7 +42,7 @@ if url = ENV['AR_URL'] || ENV['JDBC_URL']
   config[:'url'] = url
 else
   config[:'host'] = ENV['AR_HOST'] || 'localhost'
-  config[:'database'] = ENV['AR_DATABASE'] || 'ar_basin'
+  config[:'database'] = ENV['AR_DATABASE'] || 'ar_bogacs'
 end
 
 config[:'pool'] = ENV['AR_POOL_SIZE'] ? ENV['AR_POOL_SIZE'].to_i : pool_size
