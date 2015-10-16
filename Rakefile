@@ -109,14 +109,14 @@ namespace :tomcat do
 
   tomcat_maven_repo = 'http://repo2.maven.org/maven2/org/apache/tomcat'
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
-  version_default = '7.0.59'
+  version_default = '7.0.64'
 
   [ 'tomcat-jdbc', 'tomcat-dbcp' ].each do |tomcat_pool|
     namespace tomcat_pool.sub('tomcat-', '') do # rake tomcat:dbcp:download
 
       tomcat_pool_jar = "#{tomcat_pool}.jar"
 
-      task :download, :version do |_,args| # rake tomcat:jdbc:download[7.0.54]
+      task :download, :version do |_,args| # rake tomcat:jdbc:download[7.0.64]
         env_key = "#{tomcat_pool.upcase.sub('-', '_')}_VERSION" # 'TOMCAT_JDBC_VERSION'
         version = args[:version] || ENV[env_key] || version_default
 
