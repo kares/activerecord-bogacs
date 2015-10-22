@@ -3,7 +3,6 @@ require 'active_record/connection_adapters/abstract/connection_pool'
 require 'thread'
 
 require 'active_record/bogacs/thread_safe'
-ActiveRecord::Bogacs::ThreadSafe.load_atomic
 
 require 'active_record/bogacs/pool_support'
 
@@ -15,9 +14,15 @@ require 'active_record/bogacs/pool_support'
 module ActiveRecord
   module Bogacs
     class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
-      include ThreadSafe::Synchronized
       include PoolSupport
 
+      if ActiveRecord::Bogacs::ThreadSafe.load_cheap_lockable(false)
+        include ThreadSafe::CheapLockable
+      else
+        alias_method :cheap_synchronize, :synchronize
+      end
+
+      ActiveRecord::Bogacs::ThreadSafe.load_atomic_reference
       AtomicReference = ThreadSafe::AtomicReference
 
       DEFAULT_SHARED_POOL = 0.25 # only allow 25% of the pool size to be shared
