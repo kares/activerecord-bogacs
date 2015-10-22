@@ -14,7 +14,6 @@ module ActiveRecord::Bogacs
             ::Rubinius.unlock(self)
           end
         end
-        private :synchronize
       end
     elsif engine == 'jruby'
       module Synchronized
@@ -24,7 +23,6 @@ module ActiveRecord::Bogacs
         def synchronize
           ::JRuby.reference0(self).synchronized { yield }
         end
-        private :synchronize
       end
     else
       require 'thread'; require 'monitor'
