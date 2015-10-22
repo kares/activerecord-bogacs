@@ -4,6 +4,7 @@ require 'monitor'
 
 require 'active_record/connection_adapters/adapter_compat'
 require 'active_record/bogacs/pool_support'
+require 'active_record/bogacs/thread_safe/synchronized'
 
 module ActiveRecord
   module Bogacs
@@ -201,7 +202,7 @@ module ActiveRecord
       end
 
       include PoolSupport
-      include MonitorMixin # TODO consider avoiding ?!
+      include ThreadSafe::Synchronized
 
       attr_accessor :automatic_reconnect, :checkout_timeout
       attr_reader :spec, :connections, :size, :reaper
