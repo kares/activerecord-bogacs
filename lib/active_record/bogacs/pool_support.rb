@@ -4,9 +4,9 @@ module ActiveRecord
   module Bogacs
     module PoolSupport
 
-      def self.included(base)
-        #base.send :include, ThreadSafe::Util::CheapLockable
-      end
+      #def self.included(base)
+        #base.send :include, ThreadSafe::Synchronized
+      #end
 
       def new_connection
         Base.send(spec.adapter_method, spec.config)

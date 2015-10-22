@@ -1,5 +1,5 @@
-require 'thread_safe'
 require 'active_record/bogacs/pool_support'
+require 'active_record/bogacs/thread_safe'
 
 module ActiveRecord
   module Bogacs
@@ -7,8 +7,7 @@ module ActiveRecord
 
       include PoolSupport
 
-      include ThreadSafe::Util::CheapLockable
-      alias_method :synchronize, :cheap_synchronize
+      include ThreadSafe::Synchronized
 
       attr_accessor :automatic_reconnect
 
@@ -21,7 +20,7 @@ module ActiveRecord
         @size = nil
         #@automatic_reconnect = true
 
-        @reserved_connections = ThreadSafe::Cache.new #:initial_capacity => @size
+        @reserved_connections = ThreadSafe::Map.new #:initial_capacity => @size
       end
 
       # @private replacement for attr_reader :connections

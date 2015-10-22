@@ -1,17 +1,9 @@
 require 'active_record/connection_adapters/abstract/connection_pool'
 
 require 'thread'
-require 'thread_safe'
-begin
-  require 'concurrent/atomic/atomic_reference.rb'
-rescue LoadError => e
-  begin
-    require 'atomic'
-  rescue LoadError
-    warn "shareable pool needs gem 'concurrent-ruby', '>= 0.9.1' please install or add it to your Gemfile"
-    raise e
-  end
-end
+
+require 'active_record/bogacs/thread_safe'
+ActiveRecord::Bogacs::ThreadSafe.load_atomic
 
 require 'active_record/bogacs/pool_support'
 
@@ -23,8 +15,10 @@ require 'active_record/bogacs/pool_support'
 module ActiveRecord
   module Bogacs
     class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
-      include ThreadSafe::Util::CheapLockable
+      include ThreadSafe::Synchronized
       include PoolSupport
+
+      AtomicReference = ThreadSafe::AtomicReference
 
       DEFAULT_SHARED_POOL = 0.25 # only allow 25% of the pool size to be shared
       MAX_THREAD_SHARING = 5 # not really a strict limit but should hold
@@ -39,7 +33,7 @@ module ActiveRecord
         # size 0.0 - 1.0 assumes percentage of the pool size
         shared_size = ( @size * shared_size ).round if shared_size <= 1.0
         @shared_size = shared_size.to_i
-        @shared_connections = ThreadSafe::Cache.new # :initial_capacity => @shared_size, :concurrency_level => 20
+        @shared_connections = ThreadSafe::Map.new # :initial_capacity => @shared_size, :concurrency_level => 20
       end
 
       # @override
@@ -230,12 +224,6 @@ module ActiveRecord
 
         DEBUG && debug(" get_shared_conn least shared = #{least_shared.to_s}")
         least_shared # might be nil in that case we'll likely wait (as super)
-      end
-
-      if defined? Concurrent::AtomicReference
-        AtomicReference = Concurrent::AtomicReference
-      else
-        AtomicReference = ::Atomic
       end
 
       def add_shared_connection(connection)

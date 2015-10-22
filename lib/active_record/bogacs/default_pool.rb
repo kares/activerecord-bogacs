@@ -1,9 +1,9 @@
 require 'thread'
-require 'thread_safe'
 require 'monitor'
 
 require 'active_record/connection_adapters/adapter_compat'
 require 'active_record/bogacs/pool_support'
+require 'active_record/bogacs/thread_safe'
 
 module ActiveRecord
   module Bogacs
@@ -234,7 +234,7 @@ module ActiveRecord
         end
 
         # The cache of reserved connections mapped to threads
-        @reserved_connections = ThreadSafe::Cache.new(:initial_capacity => @size)
+        @reserved_connections = ThreadSafe::Map.new(:initial_capacity => @size)
 
         @connections = []
         @automatic_reconnect = true
