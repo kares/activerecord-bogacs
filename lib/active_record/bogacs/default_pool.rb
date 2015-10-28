@@ -227,8 +227,8 @@ module ActiveRecord
         if spec.config[:pool]
           @size = spec.config[:pool].to_i
         else
-          if defined? Rails.env && Rails.env.production?
-            logger && logger.debug("pool: option not set, using a default = 5")
+          if defined? Rails.env && ( (! Rails.env.development? && ! Rails.env.test?) rescue nil )
+            logger && logger.debug("pool: option not set, using default size: 5")
           end
           @size = 5
         end
