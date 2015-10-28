@@ -158,7 +158,7 @@ module ActiveRecord
 
           yield if block_given?
 
-          loop do
+          while true
             @cond.wait(timeout - elapsed)
 
             return remove if any?
