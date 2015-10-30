@@ -383,9 +383,7 @@ module ActiveRecord
       # calling +checkout+ on this pool.
       def checkin(conn, released = nil)
         synchronize do
-          conn.run_callbacks :checkin do
-            conn.expire
-          end
+          run_checkin_callbacks(conn)
 
           release conn, conn.owner unless released
 
@@ -465,11 +463,9 @@ module ActiveRecord
         c
       end
 
-      def checkout_and_verify(c)
-        c.run_callbacks :checkout do
-          c.verify!
-        end
-        c
+      def checkout_and_verify(conn)
+        run_checkout_callbacks(conn)
+        conn
       end
 
       def prefill_initial_connections

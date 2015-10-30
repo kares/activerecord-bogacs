@@ -36,6 +36,20 @@ module ActiveRecord
         end
       end if ActiveRecord::VERSION::MAJOR < 4
 
+      private
+
+      def run_checkin_callbacks(conn)
+        conn.run_callbacks :checkin do
+          conn.expire
+        end
+      end
+
+      def run_checkout_callbacks(conn)
+        conn.run_callbacks :checkout do
+          conn.verify!
+        end
+      end
+
     end
   end
 end
