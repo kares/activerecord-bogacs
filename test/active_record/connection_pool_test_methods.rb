@@ -329,6 +329,52 @@ module ActiveRecord
         # assert_raises { handler.establish_connection anonymous, nil }
       #end
 
+      def test_pooled_connection_remove
+        # ActiveRecord::Base.establish_connection(@connection.merge({:pool => 2, :checkout_timeout => 0.5}))
+        @pool.instance_variable_set(:@size, 2)
+        # old_connection = ActiveRecord::Base.connection
+        old_connection = @pool.connection
+        # extra_connection = ActiveRecord::Base.connection_pool.checkout
+        extra_connection = @pool.checkout
+        # ActiveRecord::Base.connection_pool.remove(extra_connection)
+        @pool.remove(extra_connection)
+        # assert_equal ActiveRecord::Base.connection, old_connection
+        assert_equal @pool.connection, old_connection
+      end
+
+      def test_pooled_connection_checkin_two
+        checkout_checkin_connections_loop 2, 3
+        assert_equal 3, @connection_count
+        assert_equal 0, @timed_out
+        # assert_equal 2, ActiveRecord::Base.connection_pool.connections.size
+        assert_equal 2, @pool.connections.size
+      end
+
+      protected
+
+      def checkout_checkin_connections_loop(pool_size, loops)
+        # ActiveRecord::Base.establish_connection(@connection.merge({:pool => pool_size, :checkout_timeout => 0.5}))
+        @pool.instance_variable_set(:@size, pool_size)
+        @pool.instance_variable_set(:@checkout_timeout, 0.5)
+
+        @connection_count = 0; @timed_out = 0
+        loops.times do
+          begin
+            # conn = ActiveRecord::Base.connection_pool.checkout
+            conn = @pool.checkout
+            # ActiveRecord::Base.connection_pool.checkin conn
+            @pool.checkin conn
+
+            @connection_count += 1
+
+            # ActiveRecord::Base.connection.tables
+            @pool.connection.tables
+          rescue ActiveRecord::ConnectionTimeoutError
+            @timed_out += 1
+          end
+        end
+      end
+
       private
 
       def active_connections(pool = self.pool)
