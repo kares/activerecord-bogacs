@@ -29,6 +29,8 @@ module ActiveRecord
         assert_equal 0, @pool.connections.size
       end
 
+      def self.startup; puts "running with ActiveRecord: #{ActiveRecord::VERSION::STRING}" end
+
     end
   end
 end
