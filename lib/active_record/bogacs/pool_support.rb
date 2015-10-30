@@ -38,16 +38,46 @@ module ActiveRecord
 
       private
 
-      def run_checkin_callbacks(conn)
-        conn.run_callbacks :checkin do
-          conn.expire
-        end
-      end
+      if ActiveRecord::VERSION::STRING > '4.2'
 
-      def run_checkout_callbacks(conn)
-        conn.run_callbacks :checkout do
-          conn.verify!
+        def run_checkin_callbacks(conn)
+          if conn.respond_to?(:_run_checkin_callbacks)
+            conn._run_checkin_callbacks do
+              conn.expire
+            end
+          else
+            conn.run_callbacks :checkin do
+              conn.expire
+            end
+          end
         end
+
+        def run_checkout_callbacks(conn)
+          if conn.respond_to?(:_run_checkout_callbacks)
+            conn._run_checkout_callbacks do
+              conn.verify!
+            end
+          else
+            conn.run_callbacks :checkout do
+              conn.verify!
+            end
+          end
+        end
+
+      else
+
+        def run_checkin_callbacks(conn)
+          conn.run_callbacks :checkin do
+            conn.expire
+          end
+        end
+
+        def run_checkout_callbacks(conn)
+          conn.run_callbacks :checkout do
+            conn.verify!
+          end
+        end
+
       end
 
     end
