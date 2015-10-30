@@ -12,8 +12,6 @@ module ActiveRecord
         # extend Bogacs::TestHelper
         extend Bogacs::JndiTestHelper
 
-        @@data_source = nil
-
         def self.startup
           return if self == TestBase
 
@@ -25,7 +23,11 @@ module ActiveRecord
         def self.shutdown
           return if self == TestBase
 
-          close_data_source
+          begin
+            close_data_source
+          ensure
+            @@data_source = nil
+          end
 
           ActiveRecord::Base.connection_pool.disconnect!
           ConnectionAdapters::ConnectionHandler.connection_pool_class = ConnectionAdapters::ConnectionPool
@@ -45,6 +47,8 @@ module ActiveRecord
             current_config
           end
         end
+
+        @@data_source = nil
 
         def self.init_data_source
           setup_jdbc_context
