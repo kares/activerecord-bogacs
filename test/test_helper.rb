@@ -371,7 +371,15 @@ module ActiveRecord
 
 
       def build_hikari_data_source(ar_jdbc_config = AR_CONFIG)
-        Dir.glob('test/jars/{javassist,slf4j,HikariCP}*.jar').each { |jar| load jar }
+        unless hikari_jar = Dir.glob('test/jars/HikariCP*.jar').last
+          raise 'HikariCP jar not found in test/jars directory'
+        end
+        if ( version = File.basename(hikari_jar, '.jar').match(/\-([\w\.\-]$)/) ) && version[1] < '2.3.9'
+          Dir.glob('test/jars/{javassist,slf4j}*.jar').each { |jar| require jar }
+        else
+          Dir.glob('test/jars/{slf4j}*.jar').each { |jar| require jar }
+        end
+        require hikari_jar
 
         configure_hikari_data_source(ar_jdbc_config)
       end
@@ -400,7 +408,7 @@ module ActiveRecord
           hikari_config.setDataSourceClassName 'org.postgresql.ds.PGSimpleDataSource'
           hikari_config.addDataSourceProperty 'serverName', ar_jdbc_config[:host] || 'localhost'
           hikari_config.addDataSourceProperty 'databaseName', ar_jdbc_config[:database]
-          hikari_config.addDataSourceProperty 'port', ar_jdbc_config[:port] if ar_jdbc_config[:port]
+          hikari_config.addDataSourceProperty 'portNumber', ar_jdbc_config[:port] if ar_jdbc_config[:port]
           if ar_jdbc_config[:username]
             hikari_config.addDataSourceProperty 'user', ar_jdbc_config[:username]
           end

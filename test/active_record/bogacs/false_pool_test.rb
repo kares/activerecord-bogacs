@@ -347,9 +347,6 @@ module ActiveRecord
           com.zaxxer.hikari.HikariDataSource.class_eval do
             field_reader :pool unless method_defined? :pool
           end
-          com.zaxxer.hikari.pool.HikariPool.class_eval do
-            field_reader :isShutdown unless method_defined? :isShutdown
-          end
 
           data_source
         end
