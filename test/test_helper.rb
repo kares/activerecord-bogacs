@@ -349,7 +349,7 @@ module ActiveRecord
 
         if ar_jdbc_config[:properties]
           properties = java.util.Properties.new
-          properties.putAll ar_jdbc_config[:properties]
+          ar_jdbc_config[:properties].each { |key, val| properties.put key.to_s, val.to_s }
           data_source.setProperties properties
         end
         # JDBC pool tunings (some mapped from AR configuration) :
