@@ -144,7 +144,7 @@ module ActiveRecord
         #synchronize do
           conn = checkout_new_connection # acquire_connection
           conn.lease
-          conn.run_callbacks(:checkout) { conn.verify! } # checkout_and_verify(conn)
+          _run_checkout_callbacks(conn) # checkout_and_verify(conn)
           conn
         #end
       end
@@ -157,7 +157,7 @@ module ActiveRecord
       def checkin(conn, do_release = true)
         release(conn) if do_release
         #synchronize do
-          conn.run_callbacks(:checkin) { conn.expire }
+          _run_checkin_callbacks(conn)
           #release conn
           #@available.add conn
         #end

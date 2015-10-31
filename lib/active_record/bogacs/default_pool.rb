@@ -383,7 +383,7 @@ module ActiveRecord
       # calling +checkout+ on this pool.
       def checkin(conn, released = nil)
         synchronize do
-          run_checkin_callbacks(conn)
+          _run_checkin_callbacks(conn)
 
           release conn, conn.owner unless released
 
@@ -464,7 +464,7 @@ module ActiveRecord
       end
 
       def checkout_and_verify(conn)
-        run_checkout_callbacks(conn)
+        _run_checkout_callbacks(conn)
         conn
       end
 

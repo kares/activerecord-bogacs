@@ -40,7 +40,7 @@ module ActiveRecord
 
       if ActiveRecord::VERSION::STRING > '4.2'
 
-        def run_checkin_callbacks(conn)
+        def _run_checkin_callbacks(conn)
           if conn.respond_to?(:_run_checkin_callbacks)
             conn._run_checkin_callbacks do
               conn.expire
@@ -52,7 +52,7 @@ module ActiveRecord
           end
         end
 
-        def run_checkout_callbacks(conn)
+        def _run_checkout_callbacks(conn)
           if conn.respond_to?(:_run_checkout_callbacks)
             conn._run_checkout_callbacks do
               conn.verify!
@@ -66,13 +66,13 @@ module ActiveRecord
 
       else
 
-        def run_checkin_callbacks(conn)
+        def _run_checkin_callbacks(conn)
           conn.run_callbacks :checkin do
             conn.expire
           end
         end
 
-        def run_checkout_callbacks(conn)
+        def _run_checkout_callbacks(conn)
           conn.run_callbacks :checkout do
             conn.verify!
           end
