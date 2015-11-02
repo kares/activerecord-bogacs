@@ -33,14 +33,16 @@ module ActiveRecord
     # There are several connection-pooling-related options that you can add to
     # your database connection configuration:
     #
-    # * +pool+: number indicating size of connection pool (default 5)
-    # * +checkout_timeout+: number of seconds to block and wait for a connection
+    # * **pool**: number indicating size of connection pool (default 5)
+    # * **checkout_timeout**: number of seconds to block and wait for a connection
     # before giving up and raising a timeout error (default 5 seconds).
-    # * +reaping_frequency+: frequency in seconds to periodically run the
-    # Reaper, which attempts to find and close dead connections, which can
-    # occur if a programmer forgets to close a connection at the end of a
-    # thread or a thread dies unexpectedly. (Default nil, which means don't
-    # run the Reaper - reaping will still happen occasionally).
+    # * **pool_initial**: number of connections to pre-initialize when the pool
+    # is created (default 0).
+    # * **reaping_frequency**: frequency in seconds to periodically run a reaper,
+    # which attempts to find and close "dead" connections (can occur if a caller
+    # forgets to close a connection at the end of a thread or a thread dies unexpectedly)
+    # Default is `nil`, which means don't run the periodical Reaper at all (reaping
+    # will still happen occasionally).
     class DefaultPool
       # Threadsafe, fair, FIFO queue. Meant to be used by ConnectionPool
       # with which it shares a Monitor. But could be a generic Queue.
@@ -253,6 +255,8 @@ module ActiveRecord
       #
       # #connection can be called any number of times; the connection is
       # held in a hash keyed by the thread id.
+      #
+      # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def connection
         connection_id = current_connection_id
         unless conn = @reserved_connections.fetch(connection_id, nil)
@@ -264,6 +268,8 @@ module ActiveRecord
       end
 
       # Is there an open connection that is being used for the current thread?
+      #
+      # @return [true, false]
       def active_connection?
         connection_id = current_connection_id
         if conn = @reserved_connections.fetch(connection_id, nil)
@@ -286,6 +292,8 @@ module ActiveRecord
       # If a connection already exists yield it to the block. If no connection
       # exists checkout a connection, yield it to the block, and checkin the
       # connection when finished.
+      #
+      # @yield [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def with_connection
         connection_id = current_connection_id
         fresh_connection = true unless active_connection?
@@ -295,6 +303,8 @@ module ActiveRecord
       end
 
       # Returns true if a connection has already been opened.
+      #
+      # @return [true, false]
       def connected?
         @connections.size > 0 # synchronize { @connections.any? }
       end
@@ -344,6 +354,7 @@ module ActiveRecord
 
       # Return any checked-out connections back to the pool by threads that
       # are no longer alive.
+      # @private AR 3.2 compatibility
       def clear_stale_cached_connections!
         keys = Thread.list.find_all { |t| t.alive? }.map(&:object_id)
         keys = @reserved_connections.keys - keys
@@ -354,33 +365,31 @@ module ActiveRecord
         end
       end if ActiveRecord::VERSION::MAJOR < 4
 
-      # Check-out a database connection from the pool, indicating that you want
-      # to use it. You should call #checkin when you no longer need this.
+      # Check-out a database connection from the pool, callers are expected to
+      # call #checkin when the connection is no longer needed, so that others
+      # can use it.
       #
       # This is done by either returning and leasing existing connection, or by
       # creating a new connection and leasing it.
       #
-      # If all connections are leased and the pool is at capacity (meaning the
-      # number of currently leased connections is greater than or equal to the
-      # size limit set), an ActiveRecord::ConnectionTimeoutError exception will be raised.
-      #
-      # Returns: an AbstractAdapter object.
-      #
-      # Raises:
-      # - ConnectionTimeoutError: no connection can be obtained from the pool.
+      # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
+      # @raise [ActiveRecord::ConnectionTimeoutError] if all connections are leased
+      # and the pool is at capacity (meaning the number of currently leased
+      # connections is greater than or equal to the size limit set)
       def checkout
+        conn = nil
         synchronize do
           conn = acquire_connection
           conn.lease
-          checkout_and_verify(conn)
         end
+        checkout_and_verify(conn)
       end
 
-      # Check-in a database connection back into the pool, indicating that you
-      # no longer need this connection.
+      # Check-in a database connection back into the pool.
       #
-      # +conn+: an AbstractAdapter object, which was obtained by earlier by
-      # calling +checkout+ on this pool.
+      # @param [ActiveRecord::ConnectionAdapters::AbstractAdapter] connection
+      # object, which was obtained earlier by calling #checkout on this pool
+      # @see #checkout
       def checkin(conn, released = nil)
         synchronize do
           _run_checkin_callbacks(conn)
@@ -391,8 +400,10 @@ module ActiveRecord
         end
       end
 
-      # Remove a connection from the connection pool. The connection will
-      # remain open and active but will no longer be managed by this pool.
+      # Remove a connection from the connection pool. The returned connection
+      # will remain open and active but will no longer be managed by this pool.
+      #
+      # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def remove(conn)
         synchronize do
           @connections.delete conn
@@ -405,7 +416,7 @@ module ActiveRecord
       end
 
       # Recover lost connections for the pool. A lost connection can occur if
-      # a programmer forgets to checkin a connection at the end of a thread
+      # a caller forgets to #checkin a connection for a given thread when its done
       # or a thread dies unexpectedly.
       def reap
         stale_connections = synchronize do
@@ -457,10 +468,10 @@ module ActiveRecord
       def checkout_new_connection
         raise ConnectionNotEstablished unless @automatic_reconnect
 
-        c = new_connection
-        c.pool = self
-        @connections << c
-        c
+        conn = new_connection
+        conn.pool = self
+        @connections << conn
+        conn
       end
 
       def checkout_and_verify(conn)
