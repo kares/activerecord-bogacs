@@ -51,7 +51,7 @@ module ActiveRecord
       # stdlib's doesn't support waiting with a timeout.
       # @private
       class Queue
-        def initialize(lock = Monitor.new)
+        def initialize(lock)
           @lock = lock
           @cond = @lock.new_cond
           @num_waiting = 0
@@ -177,33 +177,10 @@ module ActiveRecord
         end
       end
 
-      # Every +frequency+ seconds, the reaper will call +reap+ on +pool+.
-      # A reaper instantiated with a nil frequency will never reap the
-      # connection pool.
-      #
-      # Configure the frequency by setting "reaping_frequency" in your
-      # database yaml file.
-      class Reaper
-        attr_reader :pool, :frequency
-
-        def initialize(pool, frequency)
-          @pool = pool
-          @frequency = frequency
-        end
-
-        def run
-          return unless frequency
-          Thread.new(frequency, pool) { |t, p|
-            while true
-              sleep t
-              p.reap
-            end
-          }
-        end
-      end
-
       include PoolSupport
       include MonitorMixin # TODO consider avoiding ?!
+
+      require 'active_record/bogacs/reaper.rb'
 
       attr_accessor :automatic_reconnect, :checkout_timeout
       attr_reader :spec, :connections, :size, :reaper
