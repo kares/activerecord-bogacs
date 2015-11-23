@@ -415,6 +415,13 @@ module ActiveRecord
       end
       # NOTE: active? and reset! are >= AR 2.3
 
+      def reaper?; (@reaper ||= nil) && @reaper.frequency end
+      def reaping?; reaper? && @reaper.running? end
+
+      #@@logger = nil
+      def logger; ::ActiveRecord::Base.logger end
+      #def logger=(logger); @@logger = logger end
+
       private
 
       # Acquire a connection by one of 1) immediately removing one
@@ -466,10 +473,6 @@ module ActiveRecord
         logger && logger.debug("pre-filled pool with #{@initial_size}/#{@size} connections in #{Time.now - start}")
         conns
       end
-
-      #@@logger = nil
-      def logger; ::ActiveRecord::Base.logger end
-      #def logger=(logger); @@logger = logger end
 
     end
 
