@@ -18,7 +18,7 @@ module ActiveRecord
 
         @spec = spec
         @size = nil
-        #@automatic_reconnect = true
+        @automatic_reconnect = nil
 
         @reserved_connections = ThreadSafe::Map.new #:initial_capacity => @size
       end
@@ -232,18 +232,19 @@ module ActiveRecord
       #  conn
       #end
 
+      TIMEOUT_ERROR = /timeout|timed.?out/i
+
       def timeout_error?(error)
         full_error = error.inspect
-        # sample on JRuby + Tomcat JDBC :
+        # Tomcat JDBC :
         # ActiveRecord::JDBCError(<The driver encountered an unknown error:
         #   org.apache.tomcat.jdbc.pool.PoolExhaustedException:
         #   [main] Timeout: Pool empty. Unable to fetch a connection in 2 seconds,
         #   none available[size:10; busy:10; idle:0; lastwait:2500].>
         # )
-        return true if full_error =~ /timeout/i
         # C3P0 :
         # java.sql.SQLException: An attempt by a client to checkout a Connection has timed out.
-        return true if full_error =~ /timed.?out/i
+        return true if full_error =~ TIMEOUT_ERROR
         # NOTE: not sure what to do on MRI and friends (C-pools not tested)
         false
       end
