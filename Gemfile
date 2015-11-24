@@ -21,7 +21,7 @@ if RUBY_VERSION.index('1.8') == 0
   gem 'atomic', '1.1.16' # concurrent-ruby gem only for Ruby version >= 1.9.3
   gem 'thread_safe', '~> 0.3'
 else
-  gem 'concurrent-ruby', '1.0.0.pre4', :require => nil
+  gem 'concurrent-ruby', '~> 1.0.0', :require => nil
 end
 
 platform :jruby do
