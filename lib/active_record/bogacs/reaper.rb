@@ -35,24 +35,34 @@ module ActiveRecord
       private
 
       def exec(delay = nil)
-        Thread.new(frequency, pool) do |time, pool|
-          sleep delay if delay
-          while true
-            begin
-              sleep time
-              pool.reap
-            rescue => e
-              log = logger
-              if retry_delay = @retry_error
-                log && log.warn("[reaper] reaping failed: #{e.inspect} restarting after #{retry_delay}s")
-                start retry_delay
-              else
-                log && log.warn("[reaper] reaping failed: #{e.inspect} stopping reaper")
-                @running = false
-              end
-              break
+        sleep delay if delay
+        while true
+          begin
+            sleep frequency
+            pool.reap
+          rescue => e
+            log = logger
+            if retry_delay = @retry_error
+              log && log.warn("[reaper] reaping failed: #{e.inspect} restarting after #{retry_delay}s")
+              start retry_delay
+            else
+              log && log.warn("[reaper] reaping failed: #{e.inspect} stopping reaper")
+              @running = false
             end
+            break
           end
+        end
+      end
+
+      def set_thread_name(name)
+        if ( thread = Thread.current ).respond_to?(:name)
+          thread.name = name; return
+        end
+        if defined? JRUBY_VERSION
+          thread = JRuby.reference(thread).getNativeThread
+          thread.setName("#{name} #{thread.getName}")
+        else
+          thread[:name] = name
         end
       end
 
