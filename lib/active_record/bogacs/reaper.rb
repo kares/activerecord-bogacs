@@ -44,10 +44,10 @@ module ActiveRecord
             rescue => e
               log = logger
               if retry_delay = @retry_error
-                log && log.warn("reaping failed: #{e.inspect} restarting after #{retry_delay}s")
+                log && log.warn("[reaper] reaping failed: #{e.inspect} restarting after #{retry_delay}s")
                 start retry_delay
               else
-                log && log.warn("reaping failed: #{e.inspect} stopping reaper")
+                log && log.warn("[reaper] reaping failed: #{e.inspect} stopping reaper")
                 @running = false
               end
               break
