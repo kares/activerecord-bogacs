@@ -105,10 +105,7 @@ module ActiveRecord
       def verify_active_connections!
         synchronize do
           clear_stale_cached_connections!
-          connections = @reserved_connections.values
-          connections.each do |connection|
-            connection.verify!
-          end
+          @reserved_connections.values.each(&:verify!)
         end
       end if ActiveRecord::VERSION::MAJOR < 4
 
