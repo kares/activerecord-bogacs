@@ -183,7 +183,7 @@ module ActiveRecord
       require 'active_record/bogacs/reaper.rb'
 
       attr_accessor :automatic_reconnect, :checkout_timeout
-      attr_reader :spec, :connections, :size, :reaper
+      attr_reader :spec, :connections, :size, :reaper, :validator
       attr_reader :initial_size
 
       # Creates a new ConnectionPool object. +spec+ is a ConnectionSpecification
@@ -225,6 +225,14 @@ module ActiveRecord
         initial_size = (@size * initial_size).to_i if initial_size <= 1.0
         # NOTE: warn on onitial_size > size !
         prefill_initial_connections if ( @initial_size = initial_size.to_i ) > 0
+
+        if frequency = spec.config[:validate_frequency]
+          require 'active_record/bogacs/validator' unless self.class.const_defined?(:Validator)
+          @validator = Validator.new self, frequency, spec.config[:validate_timeout]
+          if @validator.run && @reaping
+            logger && logger.info("pool: validator configured alongside with reaper")
+          end
+        end
       end
 
       # Retrieve the connection associated with the current thread, or call
@@ -417,6 +425,9 @@ module ActiveRecord
 
       def reaper?; (@reaper ||= nil) && @reaper.frequency end
       def reaping?; reaper? && @reaper.running? end
+
+      def validator?; (@validator ||= nil) && @validator.frequency end
+      def validating?; validator? && @validator.running? end
 
       #@@logger = nil
       def logger; ::ActiveRecord::Base.logger end
