@@ -27,6 +27,19 @@ module ActiveRecord
         assert ! pool.reaping?
       end
 
+      def test_parse_frequency
+        ActiveRecord::Base.establish_connection config.merge :reaping_frequency => '0'
+        pool = DefaultPool.new ActiveRecord::Base.connection_pool.spec
+
+        assert ! pool.reaper?
+        sleep 0.1
+        assert ! pool.reaping?
+
+        assert ! Reaper.new(pool, '').frequency
+        assert_equal 5, Reaper.new(pool, '5').frequency
+        assert_equal 5.5, Reaper.new(pool, '5.5').frequency
+      end
+
       def test_reaper?
         assert @pool.reaper?
         sleep 0.1

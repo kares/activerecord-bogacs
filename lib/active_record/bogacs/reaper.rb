@@ -17,7 +17,13 @@ module ActiveRecord
       # Reaper.new(self, spec.config[:reaping_frequency]).run
       # @private
       def initialize(pool, frequency)
-        @pool = pool; @frequency = frequency
+        @pool = pool;
+        if frequency
+          frequency = frequency.to_f
+          @frequency = frequency > 0.0 ? frequency : false
+        else
+          @frequency = nil
+        end
         @retry_error = 1.5; @running = nil
       end
 
