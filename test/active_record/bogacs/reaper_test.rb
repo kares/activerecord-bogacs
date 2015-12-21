@@ -18,6 +18,8 @@ module ActiveRecord
         @pool = DefaultPool.new ActiveRecord::Base.connection_pool.spec
       end
 
+      def teardown; @pool.disconnect! if (@pool ||= nil) end
+
       def test_null_reaper
         ActiveRecord::Base.establish_connection config.merge :reaping_frequency => false
         pool = DefaultPool.new ActiveRecord::Base.connection_pool.spec
