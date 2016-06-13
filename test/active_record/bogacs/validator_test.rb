@@ -75,6 +75,42 @@ module ActiveRecord
         semaphore.release 2
       end
 
+      def test_auto_removes_stale_connection_from_pool_when_collecting_connections_to_validate
+        conn = connection
+
+        assert_equal [], validator.send(:connections)
+
+        count = AtomicFixnum.new
+        semaphore = Semaphore.new(2); semaphore.drain_permits
+        Thread.new {
+          pool.with_connection { |conn| assert conn; count.increment; semaphore.acquire }
+        }
+        stale_conn = nil
+        Thread.new {
+          assert stale_conn = pool.connection; count.increment; semaphore.acquire
+        }
+        while count.value < 2; sleep 0.01 end
+
+        returned_conn = nil
+        Thread.new {
+          pool.with_connection { |conn| assert returned_conn = conn }
+        }.join
+
+        assert_equal 4, pool.connections.size
+        validate_candidates = validator.send(:connections)
+        assert_equal [ returned_conn ], validate_candidates
+        assert_equal 4, pool.connections.size
+
+        semaphore.release(2); sleep 0.05
+
+        validate_candidates = validator.send(:connections)
+        assert_equal 2, validate_candidates.size
+        assert validate_candidates.include?(returned_conn)
+        assert ! validate_candidates.include?(stale_conn)
+        assert_equal 3, pool.connections.size
+        assert ! pool.connections.map(&:object_id).include?(stale_conn.object_id)
+     end
+
       def test_validate_connection
         conn = connection; pool.remove conn
         conn.expire; assert ! conn.in_use?
@@ -124,19 +160,50 @@ module ActiveRecord
         assert_false result
 
         assert_equal 1, pool.connections.size
-        assert ! pool.send(:connections).include?(conn)
+        assert ! pool.connections.include?(conn)
       end
 
-#      def test_reap_error_restart
-#        logger = Logger.new str = StringIO.new
-#        @pool.reaper.instance_variable_set :@logger, logger
-#        def @pool.reap; raise RuntimeError, 'test_reap_error' end
-#
-#        assert @pool.reaper?
-#        sleep 0.3
-#        assert_true @pool.reaping?
-#        assert_match /WARN.*reaping failed:.* test_reap_error.* restarting after/, str.string
-#      end
+      def test_validate_connection_considers_raising_connection_invalid
+        conn = connection; threads = []
+        threads << Thread.new { pool.with_connection { |conn| assert conn; thread_work(conn) } }
+        threads << Thread.new { pool.with_connection { |conn| assert conn; thread_work(conn) } }
+        threads.each(&:join)
+        assert_equal 3, pool.connections.size
+
+        conn.expire; assert ! conn.in_use?
+        assert pool.connections.include?(conn)
+
+        def conn.active?; raise 'a failing active? check' end
+        def conn.disconnect!; raise 'failing disconnect!' end
+
+        result = validator.send :validate_connection, conn
+        assert_false result
+
+        assert_equal 2, pool.connections.size
+        assert ! pool.connections.include?(conn)
+      end
+
+
+      def test_validate_returns_invalid_connection_count
+        conn = connection; threads = []; invalid_conns = []
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05) } }
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05); conn.expire; invalid_conns << conn } }
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05) } }
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05); conn.expire; invalid_conns << conn } }
+        threads.each(&:join)
+        assert_equal 5, pool.connections.size
+
+        invalid_conns.each { |conn| def conn.active?; false end }
+
+        result = validator.validate
+        assert_equal 2, result
+        assert_equal 3, pool.connections.size
+
+        conn.expire
+        result = validator.validate
+        assert_equal 0, result
+        assert_equal 3, pool.connections.size
+      end
 
       private
 
@@ -160,6 +227,11 @@ module ActiveRecord
       def new_pool(opts = DEFAULT_OPTS)
         establish_connection config.merge opts
         DefaultPool.new Base.connection_pool.spec
+      end
+
+      def thread_work(conn, sleep = 0.1)
+        Thread.current.abort_on_exception = true
+        conn.tables; sleep(sleep) if sleep
       end
 
       class TimerTaskStub

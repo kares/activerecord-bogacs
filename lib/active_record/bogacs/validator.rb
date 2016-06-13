@@ -12,12 +12,20 @@ require 'active_record/bogacs/thread_safe'
 module ActiveRecord
   module Bogacs
 
-    # Every +frequency+ seconds, the reaper will call +reap+ on +pool+.
-    # A reaper instantiated with a nil frequency will never reap the
-    # connection pool.
+    # Every +frequency+ seconds, the _validator_ will perform connection validation
+    # on a pool it operates.
     #
-    # Configure the frequency by setting "reaping_frequency" in your
-    # database yaml file.
+    # @note Do not use a reaper with the validator as reaping (stale connection detection
+    # and removal) is part of the validation process and will only likely slow things down
+    # as all pool connection updates needs to be synchronized.
+    #
+    # Configure the frequency by setting `:validate_frequency` in your AR configuration.
+    #
+    # We recommend not setting values too low as that would drain the pool's performance
+    # under heavy concurrent connection retrieval. Connections are also validated upon
+    # checkout - the validator is intended to detect long idle pooled connections "ahead
+    # of time" instead of upon retrieval.
+    #
     class Validator
 
       attr_reader :pool, :frequency, :timeout
@@ -64,6 +72,7 @@ module ActiveRecord
         invalid = 0
         conns.each { |connection| invalid += 1 if validate_connection(connection) == false }
         logger && logger.info("[validator] validated pool in #{Time.now - start}s (removed #{invalid} connections from pool)")
+        invalid
       end
 
       private
@@ -73,14 +82,14 @@ module ActiveRecord
         connections.map! do |conn|
           if conn
             owner = conn.owner
-            if conn.in_use?
+            if conn.in_use? # we'll do a pool.sync-ed check ...
               if owner && ! owner.alive? # stale-conn (reaping)
                 pool.remove conn # remove is synchronized
                 conn.disconnect! rescue nil
                 nil
               elsif ! owner # NOTE: this is likely a nasty bug
-                logger && logger.warn("[validator] found in-use connection without owner - removing from pool")
-                pool.remove_without_owner conn
+                logger && logger.warn("[validator] found in-use connection ##{conn.object_id} without owner - removing from pool")
+                pool.remove_without_owner conn # synchronized
                 conn.disconnect! rescue nil
                 nil
               else
@@ -101,11 +110,15 @@ module ActiveRecord
           # NOTE: active? is assumed to behave e.g. connection_alive_timeout used
           # on AR-JDBC active? might return false as the JDBC connection is lazy
           # ... but that is just fine!
-          return true if conn.active? # validate the connection - ping the DB
+          begin
+            return true if conn.active? # validate the connection - ping the DB
+          rescue => e
+            logger && logger.info("[validator] connection ##{conn.object_id} failed to validate: #{e.inspect}")
+          end
 
           # TODO support last_use - only validate if certain amount since use passed
 
-          logger && logger.debug("[validator] found non-active connection - removing from pool")
+          logger && logger.debug("[validator] found non-active connection ##{conn.object_id} - removing from pool")
           pool.remove_without_owner conn # not active - remove
           conn.disconnect! rescue nil
           return false
