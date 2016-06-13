@@ -35,9 +35,9 @@ ActiveRecord::Base.logger = Logger.new(STDOUT)
 #  ActiveRecord::ConnectionAdapters::ConnectionHandler.connection_pool_class = pool_class
 #end
 
-config = { :'adapter' => ENV['AR_ADAPTER'] || 'sqlite3' }
-config[:'username'] = ENV['AR_USERNAME'] if ENV['AR_USERNAME']
-config[:'password'] = ENV['AR_PASSWORD'] if ENV['AR_PASSWORD']
+config = { :adapter => ENV['AR_ADAPTER'] || 'sqlite3' }
+config[:username] = ENV['AR_USERNAME'] if ENV['AR_USERNAME']
+config[:password] = ENV['AR_PASSWORD'] if ENV['AR_PASSWORD']
 if url = ENV['AR_URL'] || ENV['JDBC_URL']
   config[:'url'] = url
 else
@@ -51,7 +51,7 @@ config[:'connect_timeout'] = connect_timeout
 prepared_statements = ENV['AR_PREPARED_STATEMENTS'] # || true
 config[:'prepared_statements'] = prepared_statements if prepared_statements
 #jdbc_properties = { 'logUnclosedConnections' => true, 'loginTimeout' => 5 }
-#config['properties'] = jdbc_properties
+#config[:'properties'] = jdbc_properties
 
 checkout_timeout = ENV['AR_POOL_CHECKOUT_TIMEOUT'] || checkout_timeout
 config[:'checkout_timeout'] = checkout_timeout.to_f if checkout_timeout
@@ -404,6 +404,9 @@ module ActiveRecord
           if ar_jdbc_config[:password]
             hikari_config.addDataSourceProperty 'password', ar_jdbc_config[:password]
           end
+          ( ar_jdbc_config[:properties] || {} ).each do |name, val|
+            hikari_config.addDataSourceProperty name.to_s, val.to_s
+          end
         when /postgres/i
           hikari_config.setDataSourceClassName 'org.postgresql.ds.PGSimpleDataSource'
           hikari_config.addDataSourceProperty 'serverName', ar_jdbc_config[:host] || 'localhost'
@@ -415,12 +418,16 @@ module ActiveRecord
           if ar_jdbc_config[:password]
             hikari_config.addDataSourceProperty 'password', ar_jdbc_config[:password]
           end
+          ( ar_jdbc_config[:properties] || {} ).each do |name, val|
+            hikari_config.addDataSourceProperty name.to_s, val.to_s
+          end
         else
           hikari_config.setDriverClassName driver
           hikari_config.setJdbcUrl ar_jdbc_config[:url]
           hikari_config.setUsername ar_jdbc_config[:username] if ar_jdbc_config[:username]
           hikari_config.setPassword ar_jdbc_config[:password] if ar_jdbc_config[:password]
         end
+        hikari_config.setJdbcUrl ar_jdbc_config[:url] if ar_jdbc_config[:url]
 
         # TODO: we shall handle raw properties ?!
         #if ar_jdbc_config[:properties]
