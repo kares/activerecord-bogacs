@@ -50,6 +50,10 @@ module ActiveRecord
               conn.expire
             end
           end
+        rescue => e
+          remove conn
+          conn.disconnect! rescue nil
+          raise e
         end
 
         def _run_checkout_callbacks(conn)
@@ -62,6 +66,10 @@ module ActiveRecord
               conn.verify!
             end
           end
+        rescue => e
+          remove conn
+          conn.disconnect! rescue nil
+          raise e
         end
 
       else
