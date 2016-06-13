@@ -20,7 +20,8 @@ module ActiveRecord
         connection.close
         assert ! connection.in_use?
 
-        assert pool.connection.in_use?
+        assert_equal connection, pool.connection
+        # assert pool.connection.in_use?
       end
 
       def test_released_connection_moves_between_threads
