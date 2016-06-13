@@ -6,7 +6,43 @@ module ActiveRecord
 
       attr_accessor :pool unless method_defined? :pool
 
-      unless method_defined? :owner
+      if method_defined? :owner # >= 4.2
+
+        attr_reader :last_use
+
+        if ActiveRecord::VERSION::MAJOR > 4
+
+          # @private added @last_use
+          def lease
+            if in_use?
+              msg = 'Cannot lease connection, '
+              if @owner == Thread.current
+                msg += 'it is already leased by the current thread.'
+              else
+                msg += "it is already in use by a different thread: #{@owner}. Current thread: #{Thread.current}."
+              end
+              raise ActiveRecordError, msg
+            end
+
+            @owner = Thread.current; @last_use = Time.now
+          end
+
+        else
+
+          # @private removed synchronization + added @last_use
+          def lease
+            if in_use?
+              if @owner == Thread.current
+                # NOTE: could do a warning if 4.2.x cases do not end up here ...
+              end
+            else
+              @owner = Thread.current; @last_use = Time.now
+            end
+          end
+
+        end
+
+      else
 
         attr_reader :owner
 
