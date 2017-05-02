@@ -3,22 +3,20 @@ require 'thread'
 module ActiveRecord
   module Bogacs
 
-    # Every +frequency+ seconds, the reaper will "reap" a pool it belongs to.
+    # Every *frequency* seconds, the reaper will "reap" a pool it belongs to.
     # Reaping means detecting stale cached connections in the pool - those that
     # were checked-out by a thread but never checked back in after the thread
     # finished/died.
     #
+    # Configure the frequency by setting `:reaping_frequency` in your database.yml.
+    #
     # @note This version is fail safe - raised errors won't stop the reaping process.
-    # Instead the thread will be restarted and reaping continues at the next tick.
-    #
-    # Configure the frequency by setting `:reaping_frequency` in your database yaml file.
-    #
     class Reaper
 
       attr_reader :pool, :frequency
       attr_accessor :retry_error
 
-      # Reaper.new(self, spec.config[:reaping_frequency]).run
+      # `Reaper.new(pool, spec.config[:reaping_frequency]).run`
       # @private
       def initialize(pool, frequency)
         @pool = pool;

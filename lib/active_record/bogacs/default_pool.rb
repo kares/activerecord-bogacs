@@ -8,41 +8,13 @@ require 'active_record/bogacs/thread_safe'
 module ActiveRecord
   module Bogacs
 
-    # == Obtaining (checking out) a connection
+    # A "default" `ActiveRecord::ConnectionAdapters::ConnectionPool`-like pool
+    # implementation with compatibility across (older) Rails versions.
     #
-    # Connections can be obtained and used from a connection pool in several
-    # ways:
+    # Currently, mostly, based on ActiveRecord **4.2**.
     #
-    # 1. Simply use ActiveRecord::Base.connection as with Active Record 2.1 and
-    # earlier (pre-connection-pooling). Eventually, when you're done with
-    # the connection(s) and wish it to be returned to the pool, you call
-    # ActiveRecord::Base.clear_active_connections!.
-    # 2. Manually check out a connection from the pool with
-    # ActiveRecord::Base.connection_pool.checkout. You are responsible for
-    # returning this connection to the pool when finished by calling
-    # ActiveRecord::Base.connection_pool.checkin(connection).
-    # 3. Use ActiveRecord::Base.connection_pool.with_connection(&block), which
-    # obtains a connection, yields it as the sole argument to the block,
-    # and returns it to the pool after the block completes.
+    # http://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/ConnectionPool.html
     #
-    # Connections in the pool are actually AbstractAdapter objects (or objects
-    # compatible with AbstractAdapter's interface).
-    #
-    # == Options
-    #
-    # There are several connection-pooling-related options that you can add to
-    # your database connection configuration:
-    #
-    # * **pool**: number indicating size of connection pool (default 5)
-    # * **checkout_timeout**: number of seconds to block and wait for a connection
-    # before giving up and raising a timeout error (default 5 seconds).
-    # * **pool_initial**: number of connections to pre-initialize when the pool
-    # is created (default 0).
-    # * **reaping_frequency**: frequency in seconds to periodically run a reaper,
-    # which attempts to find and close "dead" connections (can occur if a caller
-    # forgets to close a connection at the end of a thread or a thread dies unexpectedly)
-    # Default is `nil`, which means don't run the periodical Reaper at all (reaping
-    # will still happen occasionally).
     class DefaultPool
       # Threadsafe, fair, FIFO queue. Meant to be used by ConnectionPool
       # with which it shares a Monitor. But could be a generic Queue.
@@ -106,9 +78,8 @@ module ActiveRecord
         # available, waiting up to +timeout+ seconds for an element to
         # become available.
         #
-        # Raises:
-        # - ConnectionTimeoutError if +timeout+ is given and no element
-        # becomes available after +timeout+ seconds,
+        # @raise [ActiveRecord::ConnectionTimeoutError] if +timeout+ given and no element
+        # becomes available after +timeout+ seconds
         def poll(timeout = nil, &block)
           synchronize do
             if timeout
@@ -186,12 +157,28 @@ module ActiveRecord
       attr_reader :spec, :connections, :size, :reaper, :validator
       attr_reader :initial_size
 
-      # Creates a new ConnectionPool object. +spec+ is a ConnectionSpecification
+      # Creates a new `ConnectionPool` object. +spec+ is a ConnectionSpecification
       # object which describes database connection information (e.g. adapter,
       # host name, username, password, etc), as well as the maximum size for
       # this ConnectionPool.
       #
-      # The default ConnectionPool maximum size is 5.
+      # @note The default ConnectionPool maximum size is **5**.
+      #
+      # @param [Hash] spec a `ConnectionSpecification`
+      #
+      # @option spec.config [Integer] :pool number indicating size of connection pool (default 5)
+      # @option spec.config [Float] :checkout_timeout number of seconds to block and
+      # wait for a connection before giving up raising a timeout (default 5 seconds).
+      # @option spec.config [Integer] :pool_initial number of connections to pre-initialize
+      # when the pool is created (default 0).
+      # @option spec.config [Float] :reaping_frequency frequency in seconds to periodically
+      # run a reaper, which attempts to find and close "dead" connections (can occur
+      # if a caller forgets to close a connection at the end of a thread or a thread
+      # dies unexpectedly) default is `nil` - don't run the periodical Reaper (reaping
+      # will still happen occasionally).
+      # @option spec.config [Float] :validate_frequency frequency in seconds to periodically
+      # run a connection validation (in a separate thread), to avoid potentially stale
+      # sockets when connections stay open (pooled but unused) for longer periods.
       def initialize(spec)
         super()
 
@@ -230,7 +217,7 @@ module ActiveRecord
           require 'active_record/bogacs/validator' unless self.class.const_defined?(:Validator)
           @validator = Validator.new self, frequency, spec.config[:validate_timeout]
           if @validator.run && @reaping
-            logger && logger.info("pool: validator configured alongside with reaper")
+            logger && logger.warn(":validate_frequency configured alongside with :reaping_frequency")
           end
         end
       end
@@ -372,7 +359,7 @@ module ActiveRecord
 
       # Check-in a database connection back into the pool.
       #
-      # @param [ActiveRecord::ConnectionAdapters::AbstractAdapter] connection
+      # @param conn [ActiveRecord::ConnectionAdapters::AbstractAdapter] connection
       # object, which was obtained earlier by calling #checkout on this pool
       # @see #checkout
       def checkin(conn, released = nil)
@@ -440,8 +427,8 @@ module ActiveRecord
       # connection if the pool is not at capacity, 3) waiting on the
       # queue for a connection to become available.
       #
-      # Raises:
-      # - ConnectionTimeoutError if a connection could not be acquired
+      # @raise [ActiveRecord::ConnectionTimeoutError]
+      # @raise [ActiveRecord::ConnectionNotEstablished]
       def acquire_connection
         if conn = @available.poll
           conn

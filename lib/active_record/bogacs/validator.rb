@@ -12,12 +12,8 @@ require 'active_record/bogacs/thread_safe'
 module ActiveRecord
   module Bogacs
 
-    # Every +frequency+ seconds, the _validator_ will perform connection validation
+    # Every *frequency* seconds, the _validator_ will perform connection validation
     # on a pool it operates.
-    #
-    # @note Do not use a reaper with the validator as reaping (stale connection detection
-    # and removal) is part of the validation process and will only likely slow things down
-    # as all pool connection updates needs to be synchronized.
     #
     # Configure the frequency by setting `:validate_frequency` in your AR configuration.
     #
@@ -26,11 +22,15 @@ module ActiveRecord
     # checkout - the validator is intended to detect long idle pooled connections "ahead
     # of time" instead of upon retrieval.
     #
+    # @note Do not use a reaper with the validator!
+    # Reaping (stale connection detection and removal) is part of the validation
+    # process and will only slow things down as all pool connection updates needs
+    # to be synchronized.
     class Validator
 
       attr_reader :pool, :frequency, :timeout
 
-      # Validator.new(self, spec.config[:validate_frequency]).run
+      # `Validator.new(pool, spec.config[:validate_frequency]).run`
       # @private
       def initialize(pool, frequency = 60, timeout = nil)
         @pool = pool; PoolAdaptor.adapt! pool

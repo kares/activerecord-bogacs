@@ -43,7 +43,7 @@ end
 
 pools are expected to work with older ActiveRecord versions, if not let us know.
 
-### Default Pool
+### [Default Pool][2]
 
 Meant as a back-port for users stuck with old Rails versions (< 4.0) on production,
 facing potential (pool related) concurrency bugs e.g. with high-loads under JRuby.
@@ -52,7 +52,7 @@ Based on pool code from 4.x (which works much better than any previous version),
 with a few minor tunings and extensions such as `pool_initial: 0.5` which allows
 to specify how many connections to initialize in advance when the pool is created.
 
-### False Pool
+### [False Pool][3]
 
 The false pool won't do any actual pooling, it is assumed that an underlying pool
 is configured. Still, it does maintain a hash of AR connections mapped to threads.
@@ -82,7 +82,7 @@ default Tomcat JDBC pool) :
       maxWait: <%= (( ENV['POOL_TIMEOUT'] || 5.0 ).to_f * 1000).to_i %> # default 30s
 ```
 
-ActiveRecord-JDBC adapter allows you to lookup connection from JNDI using the
+[ActiveRecord-JDBC][5] adapter allows you to lookup connection from JNDI using the
 following configuration :
 
 ```
@@ -117,7 +117,11 @@ Only tested with ActiveRecord-JDBC-Adapter using the official Postgres' driver.
 
 ## Copyright
 
-Copyright (c) 2015 [Karol Bucek](http://kares.org).
+Copyright (c) 2017 [Karol Bucek](http://kares.org).
 See LICENSE (http://en.wikipedia.org/wiki/MIT_License) for details.
 
 [0]: http://res.cloudinary.com/kares/image/upload/c_scale,h_600,w_800/v1406451696/bogacs.jpg
+[1]: http://www.rubydoc.info/gems/activerecord-bogacs/
+[2]: http://www.rubydoc.info/gems/activerecord-bogacs/ActiveRecord/Bogacs/DefaultPool
+[3]: http://www.rubydoc.info/gems/activerecord-bogacs/ActiveRecord/Bogacs/FalsePool
+[5]: https://github.com/jruby/activerecord-jdbc-adapter

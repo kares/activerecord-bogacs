@@ -1,4 +1,4 @@
-Copyright (c) 2013-2015 [Karol Bucek](http://kares.org)
+Copyright (c) 2013-2017 [Karol Bucek](http://kares.org)
 
 MIT License
 

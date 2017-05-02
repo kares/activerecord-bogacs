@@ -126,17 +126,8 @@ module ActiveRecord
       # Check-out a database connection from the pool, indicating that you want
       # to use it. You should call #checkin when you no longer need this.
       #
-      # This is done by either returning and leasing existing connection, or by
-      # creating a new connection and leasing it.
-      #
-      # If all connections are leased and the pool is at capacity (meaning the
-      # number of currently leased connections is greater than or equal to the
-      # size limit set), an ActiveRecord::ConnectionTimeoutError exception will be raised.
-      #
-      # Returns: an AbstractAdapter object.
-      #
-      # Raises:
-      # - ConnectionTimeoutError: no connection can be obtained from the pool.
+      # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
+      # @raise [ActiveRecord::ConnectionTimeoutError] no connection can be obtained from the pool
       def checkout
         #synchronize do
           conn = checkout_new_connection # acquire_connection
@@ -149,8 +140,9 @@ module ActiveRecord
       # Check-in a database connection back into the pool, indicating that you
       # no longer need this connection.
       #
-      # +conn+: an AbstractAdapter object, which was obtained by earlier by
-      # calling +checkout+ on this pool.
+      # @param conn [ActiveRecord::ConnectionAdapters::AbstractAdapter] connection
+      # object, which was obtained earlier by calling #checkout on this pool
+      # @see #checkout
       def checkin(conn, do_release = true)
         release(conn) if do_release
         #synchronize do
@@ -173,13 +165,7 @@ module ActiveRecord
 
       private
 
-      # Acquire a connection by one of 1) immediately removing one
-      # from the queue of available connections, 2) creating a new
-      # connection if the pool is not at capacity, 3) waiting on the
-      # queue for a connection to become available.
-      #
-      # Raises:
-      # - ConnectionTimeoutError if a connection could not be acquired
+      # @raise [ActiveRecord::ConnectionTimeoutError]
       def acquire_connection
         # underlying pool will poll and block if "empty" (all checked-out)
         #if conn = @available.poll
