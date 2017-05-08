@@ -1,9 +1,9 @@
+require 'active_record/version'
 require 'active_record/connection_adapters/abstract/connection_pool'
 
 require 'thread'
 
 require 'active_record/bogacs/thread_safe'
-
 require 'active_record/bogacs/pool_support'
 
 # NOTE: needs explicit configuration - before connection gets established e.g.

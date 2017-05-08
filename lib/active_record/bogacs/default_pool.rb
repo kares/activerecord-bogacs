@@ -1,6 +1,8 @@
 require 'thread'
 require 'monitor'
 
+require 'active_record/version'
+
 require 'active_record/connection_adapters/adapter_compat'
 require 'active_record/bogacs/pool_support'
 require 'active_record/bogacs/thread_safe'

@@ -1,3 +1,5 @@
+require 'active_record/version'
+
 require 'active_record/bogacs/pool_support'
 require 'active_record/bogacs/thread_safe'
 
