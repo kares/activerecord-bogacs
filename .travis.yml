@@ -5,10 +5,13 @@ jdk:
   - oraclejdk8
 rvm:
   - jruby-1.7.25
+before_install:
+    - unset _JAVA_OPTIONS
+    - export AR_JDBC_VERSION="~> 1.3.24" # due the 50.0   release mess -> not specifying AR ~> 5.0
 before_script:
   - export JAVA_OPTS="$JAVA_OPTS" # -Xmx600M
   - 'echo "JAVA_OPTS: $JAVA_OPTS"'
-  - export JRUBY_OPTS="$JRUBY_OPTS" # --server
+  - export JRUBY_OPTS="--server -Xcompile.invokedynamic=false"
   - 'echo "JRUBY_OPTS: $JRUBY_OPTS"'
 script:
   - jruby -rbundler/setup -S rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download
