@@ -1,20 +1,19 @@
 language: ruby
 sudo: false
 jdk:
-  - oraclejdk7
+  - openjdk7
   - oraclejdk8
 rvm:
   - jruby-1.7.25
 before_script:
-  #- echo \"JRUBY_OPTS: $JRUBY_OPTS\"
-  - export JRUBY_OPTS="$JRUBY_OPTS --server -Xcext.enabled=false -Xcompile.invokedynamic=false"
   - export JAVA_OPTS="$JAVA_OPTS" # -Xmx600M
+  - 'echo "JAVA_OPTS: $JAVA_OPTS"'
+  - export JRUBY_OPTS="$JRUBY_OPTS" # --server
+  - 'echo "JRUBY_OPTS: $JRUBY_OPTS"'
 script:
-  - bundle exec rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download
-  - bundle exec rake c3p0:download
-  - bundle exec rake hikari:download
-  - bundle exec rake dbcp:download
-  - bundle exec rake db:create:mysql db:create:postgresql
+  - jruby -rbundler/setup -S rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download
+  - jruby -rbundler/setup -S rake c3p0:download hikari:download dbcp:download
+  - jruby -rbundler/setup -S rake db:create:mysql db:create:postgresql
 env:
   - JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 4.1.13" HIKARI_VERSION="2.3.12"
   - JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=postgresql AR_VERSION="~> 4.1.13" HIKARI_VERSION="2.3.2-java6"
@@ -25,11 +24,11 @@ matrix:
   #allow_failures:
     #- rvm: jruby-head
   exclude:
-    - rvm: jruby-1.7.25
-      env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="4.2.6" HIKARI_VERSION="2.3.12"
-      jdk: oraclejdk7
-    - rvm: jruby-1.7.25
-      env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=postgresql AR_VERSION="4.2.6" HIKARI_VERSION="2.3.2-java6"
+    - rvm: jruby-9.1.16.0
+      env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="4.2.8" HIKARI_VERSION="2.3.12"
+      jdk: openjdk7
+    - rvm: jruby-9.1.16.0
+      env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=postgresql AR_VERSION="4.2.8" HIKARI_VERSION="2.3.2-java6"
       jdk: oraclejdk8
     - rvm: jruby-1.7.25
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 4.1.16" HIKARI_VERSION="2.0.1-java6"
@@ -40,20 +39,20 @@ matrix:
   include:
     - rvm: jruby-9.0.5.0
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 4.1.13" HIKARI_VERSION="2.2.5-java6"
-      jdk: oraclejdk7
+      jdk: openjdk7
     - rvm: jruby-9.1.8.0
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 3.2.18" HIKARI_VERSION="2.3.9"
       jdk: oraclejdk8
     # AR 4.2
-    - rvm: jruby-1.7.24
+    - rvm: jruby-1.7.27
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 4.1.13" HIKARI_VERSION="2.2.5-java6"
-      jdk: oraclejdk7
-    - rvm: jruby-9.1.8.0
+      jdk: openjdk7
+    - rvm: jruby-9.1.16.0
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=mysql AR_VERSION="~> 4.2.8" HIKARI_VERSION="2.3.12"
       jdk: oraclejdk8
-    - rvm: jruby-1.7.24
+    - rvm: jruby-9.1.16.0
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=postgresql AR_VERSION="~> 4.2.8" HIKARI_VERSION="2.2.5-java6"
       jdk: oraclejdk8
-    - rvm: jruby-9.1.8.0
+    - rvm: jruby-9.1.16.0
       env: JRUBY_OPTS="$JRUBY_OPTS" AR_ADAPTER=postgresql AR_VERSION="~> 4.1.13" HIKARI_VERSION="2.3.12"
-      jdk: oraclejdk7
+      jdk: openjdk7
