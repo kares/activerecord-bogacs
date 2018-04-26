@@ -1,4 +1,3 @@
-#require 'thread_safe'
 
 module ActiveRecord
   module Bogacs
