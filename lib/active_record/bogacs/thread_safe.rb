@@ -9,8 +9,8 @@ module ActiveRecord
           begin
             require 'thread_safe'
           rescue
-            warn "activerecord-bogacs needs gem 'concurrent-ruby', '~> 1.0' (or the old 'thread_safe' gem) " <<
-                 "please install or add it to your Gemfile"
+            warn "activerecord-bogacs needs gem 'concurrent-ruby', '~> 1.0' (or the old 'thread_safe' gem)" +
+                 " please install or add it to your Gemfile"
             raise e
           end
         end
@@ -58,8 +58,8 @@ module ActiveRecord
             require 'thread_safe'
           rescue
             return nil unless required
-            warn "activerecord-bogacs needs gem 'concurrent-ruby', '~> 1.0' (or the old 'thread_safe' gem) " <<
-                 "please install or add it to your Gemfile"
+            warn "activerecord-bogacs needs gem 'concurrent-ruby', '~> 1.0' (or the old 'thread_safe' gem)" +
+                 " please install or add it to your Gemfile"
             raise e
           end
         end
@@ -70,6 +70,29 @@ module ActiveRecord
           const_set :CheapLockable, ::ThreadSafe::Util::CheapLockable
         end
       end
+
+
+      def self.load_monotonic_clock(required = true)
+        return const_get :MONOTONIC_CLOCK if const_defined? :MONOTONIC_CLOCK
+
+        begin
+          require 'concurrent/utility/monotonic_time.rb'
+        rescue LoadError => e
+          return nil unless required
+          warn "activerecord-bogacs needs gem 'concurrent-ruby', '~> 1.0'" +
+               " please install or add it to your Gemfile"
+          raise e
+        end
+
+        if defined? ::Concurrent.monotonic_time
+          const_set :MONOTONIC_CLOCK, ::Concurrent.const_get(:GLOBAL_MONOTONIC_CLOCK)
+        end
+      end
+
+      # @note Only works when {@link #load_monotonic_time} succeeds.
+      #def self.monotonic_time
+      #  MONOTONIC_CLOCK.get_time # java.lang.System.nanoTime() / 1_000_000_000.0
+      #end
 
     end
   end

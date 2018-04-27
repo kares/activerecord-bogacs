@@ -116,7 +116,7 @@ module ActiveRecord
             logger && logger.info("[validator] connection ##{conn.object_id} failed to validate: #{e.inspect}")
           end
 
-          # TODO support last_use - only validate if certain amount since use passed
+          # TODO support seconds_idle - only validate if certain amount since use passed
 
           logger && logger.debug("[validator] found non-active connection ##{conn.object_id} - removing from pool")
           pool.remove_without_owner conn # not active - remove
