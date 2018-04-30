@@ -6,7 +6,7 @@ ActiveRecord (all-year) pooling "alternatives" ... in a relaxed 'spa' fashion.
 
 Bogács is a village in Borsod-Abaúj-Zemplén county, Hungary.
 
-**WiP: do not put this on production if you do not understand the consequences!**
+**NOTE: do not put this on production if you do not understand the consequences!**
 
 ## Install
 
@@ -22,8 +22,8 @@ add this line to your application's *Gemfile*:
 
 Bogacs' pools rely on a small monkey-patch that allows to change the AR pool.
 The desired pool class needs to be set before `establish_connection` happens,
-thus an initializer won't work, you might consider setting the pool class at
-the bottom of your *application.rb* e.g. :
+thus an initializer (under Rails) won't work, you might consider setting the 
+pool class at the bottom of your *application.rb* e.g. :
 
 ```ruby
 Bundler.require(*Rails.groups)
@@ -34,19 +34,39 @@ module MyApp
   end
 end
 
-# sample AR-Bogacs setup using the "false" pool :
+# sample AR-Bogacs setup using the "default" pool :
 if Rails.env.production?
-  pool_class = ActiveRecord::Bogacs::FalsePool
+  pool_class = ActiveRecord::Bogacs::DefaultPool
   ActiveRecord::ConnectionAdapters::ConnectionHandler.connection_pool_class = pool_class
 end
 ```
 
-pools are expected to work with older ActiveRecord versions, if not let us know.
+Alternatively, for `FalsePool`, there's a configuration convention (no need to path 
+and set the connection_pool_class) :
+```yaml
+production:
+  adapter: mysql2
+  <% if $servlet_context %>
+  jndi: java:comp/env/jdbc/mydb
+  pool: false # use AR::Bogacs::FalsePool
+  <% else %>
+  port: <%= ENV['DATABASE_PORT'] || 3306 %>
+  database: mydb
+  # ...
+  <% end %>
+```
+
+This works only as long as one doesn't set a custom connection handler, since 
+*Bogacs* only sets up its custom `ActiveRecord::Base.default_connection_handler`.
+
+Pools are expected to work with older ActiveRecord versions: 3.x as well as 4.x.
 
 ### [Default Pool][2]
 
-Meant as a back-port for users stuck with old Rails versions (< 4.0) on production,
-facing potential (pool related) concurrency bugs e.g. with high-loads under JRuby.
+Meant, primarily, as a back-port for users stuck with old Rails versions (< 4.0) 
+on production, facing potential (pool related) concurrency bugs e.g. with highly 
+concurrent loads under JRuby, although it also enhances some of the thread locking
+issues present in 4.x's pool. 
 
 Based on pool code from 4.x (which works much better than any previous version),
 with a few minor tunings and extensions such as `pool_initial: 0.5` which allows
@@ -56,7 +76,7 @@ to specify how many connections to initialize in advance when the pool is create
 
 The false pool won't do any actual pooling, it is assumed that an underlying pool
 is configured. Still, it does maintain a hash of AR connections mapped to threads.
-Ignores pool related configurations such as `pool: 42` or `checkout_timeout: 2.5`.
+Ignores pool related configuration such as `pool: 42` or `checkout_timeout: 2.5`.
 
 **NOTE:** be sure to configure an underlying pool e.g. with Trinidad (using the
 default Tomcat JDBC pool) :
@@ -70,7 +90,7 @@ default Tomcat JDBC pool) :
     mysql_dbpool:
       url: jdbc:mysql:///my_production
       username: root
-      jndi: jdbc/BogacsDB
+      jndi: jdbc/MyDB
       initialSize: <%= ENV['POOL_INITIAL'] || 25 %> # connections created on start
       maxActive: <%= ENV['POOL_SIZE'] || 100 %> # default 100 (AR pool: size)
       maxIdle: <%= ENV['POOL_SIZE'] || 100 %> # max connections kept in the pool
@@ -88,7 +108,7 @@ following configuration :
 ```
 production:
   adapter: mysql2
-  jndi: java:/comp/env/jdbc/BogacsDB
+  jndi: java:/comp/env/jdbc/MyDB
 ```
 
 **NOTE:** when using `FalsePool` there's nothing to configure (in *database.yml*)!
@@ -97,7 +117,7 @@ production:
 
 This pool allows for a database connection to be "shared" among threads, this is
 very **dangerous** normally. You will need to understand the underlying driver's
-connection whether it is thread-safe.
+connection implementation (whether its thread-safe).
 
 You'll need to manually declare blocks that run with a shared connection (**make
 sure** only read operations happen within such blocks) similar to the built-in
@@ -109,15 +129,15 @@ cache_fetch( [ 'user', user_id ] ) do
 end
 ```
 
-The pool will only share connections among such blocks and only if it runs out
-of all connections (until than it will always prefer checking out a connection
-just like a "regular" pool).
+The pool "might" share connections among such blocks but only if it runs out of 
+all connections (pool size is reached), until than it will always prefer checking 
+out a connection just like `with_connection` does.
 
-Only tested with ActiveRecord-JDBC-Adapter using the official Postgres' driver.
+Tested with ActiveRecord-JDBC-Adapter using the official Postgres' driver (< 42).
 
 ## Copyright
 
-Copyright (c) 2017 [Karol Bucek](http://kares.org).
+Copyright (c) 2018 [Karol Bucek](http://kares.org).
 See LICENSE (http://en.wikipedia.org/wiki/MIT_License) for details.
 
 [0]: http://res.cloudinary.com/kares/image/upload/c_scale,h_600,w_800/v1406451696/bogacs.jpg
