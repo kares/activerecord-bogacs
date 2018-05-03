@@ -1,0 +1,1 @@
+require 'active_record/bogacs' # auto-loading with gem '...' declarations
