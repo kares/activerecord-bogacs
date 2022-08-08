@@ -150,9 +150,9 @@ module ActiveRecord
 
       require 'active_record/bogacs/reaper.rb'
 
-      attr_accessor :automatic_reconnect, :checkout_timeout
-      attr_reader :spec, :connections, :size, :reaper, :validator
-      attr_reader :initial_size
+      attr_accessor :automatic_reconnect, :checkout_timeout, :schema_cache
+      attr_reader :spec, :size, :reaper
+      attr_reader :validator, :initial_size
 
       # Creates a new `ConnectionPool` object. +spec+ is a ConnectionSpecification
       # object which describes database connection information (e.g. adapter,
@@ -197,7 +197,7 @@ module ActiveRecord
         end
 
         # The cache of reserved connections mapped to threads
-        @reserved_connections = ThreadSafe::Map.new(:initial_capacity => @size)
+        @thread_cached_conns = ThreadSafe::Map.new(initial_capacity: @size)
 
         @connections = []
         @automatic_reconnect = true
@@ -229,12 +229,9 @@ module ActiveRecord
       #
       # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def connection
-        connection_id = current_connection_id
-        unless conn = @reserved_connections.fetch(connection_id, nil)
-          synchronize do
-            conn = ( @reserved_connections[connection_id] ||= checkout )
-          end
-        end
+        connection_id = current_connection_id(current_thread)
+        conn = @thread_cached_conns.fetch(connection_id, nil)
+        conn = ( @thread_cached_conns[connection_id] ||= checkout ) unless conn
         conn
       end
 
@@ -242,22 +239,16 @@ module ActiveRecord
       #
       # @return [true, false]
       def active_connection?
-        connection_id = current_connection_id
-        if conn = @reserved_connections.fetch(connection_id, nil)
-          !! conn.in_use? # synchronize { conn.in_use? }
-        else
-          false
-        end
+        connection_id = current_connection_id(current_thread)
+        @thread_cached_conns.fetch(connection_id, nil)
       end
 
       # Signal that the thread is finished with the current connection.
       # #release_connection releases the connection-thread association
       # and returns the connection to the pool.
-      def release_connection(with_id = current_connection_id)
-        #synchronize do
-          conn = @reserved_connections.delete(with_id)
-          checkin conn, true if conn
-        #end
+      def release_connection(owner_thread = Thread.current)
+        conn = @thread_cached_conns.delete(current_connection_id(owner_thread))
+        checkin conn if conn
       end
 
       # If a connection already exists yield it to the block. If no connection
@@ -267,8 +258,11 @@ module ActiveRecord
       # @yield [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def with_connection
         connection_id = current_connection_id
-        fresh_connection = true unless active_connection?
-        yield connection
+        unless conn = @thread_cached_conns[connection_id]
+          conn = connection
+          fresh_connection = true
+        end
+        yield conn
       ensure
         release_connection(connection_id) if fresh_connection
       end
@@ -280,10 +274,25 @@ module ActiveRecord
         @connections.size > 0 # synchronize { @connections.any? }
       end
 
+      # Returns an array containing the connections currently in the pool.
+      # Access to the array does not require synchronization on the pool because
+      # the array is newly created and not retained by the pool.
+      #
+      # However; this method bypasses the ConnectionPool's thread-safe connection
+      # access pattern. A returned connection may be owned by another thread,
+      # unowned, or by happen-stance owned by the calling thread.
+      #
+      # Calling methods on a connection without ownership is subject to the
+      # thread-safety guarantees of the underlying method. Many of the methods
+      # on connection adapter classes are inherently multi-thread unsafe.
+      def connections
+        synchronize { @connections.dup }
+      end
+
       # Disconnects all connections in the pool, and clears the pool.
       def disconnect!
         synchronize do
-          @reserved_connections.clear
+          @thread_cached_conns.clear
           @connections.each do |conn|
             checkin conn
             conn.disconnect!
@@ -296,7 +305,7 @@ module ActiveRecord
       # Clears the cache which maps classes.
       def clear_reloadable_connections!
         synchronize do
-          @reserved_connections.clear
+          @thread_cached_conns.clear
           @connections.each do |conn|
             checkin conn
             conn.disconnect! if conn.requires_reloading?
@@ -328,11 +337,11 @@ module ActiveRecord
       # @private AR 3.2 compatibility
       def clear_stale_cached_connections!
         keys = Thread.list.find_all { |t| t.alive? }.map(&:object_id)
-        keys = @reserved_connections.keys - keys
+        keys = @thread_cached_conns.keys - keys
         keys.each do |key|
-          conn = @reserved_connections[key]
+          conn = @thread_cached_conns[key]
           checkin conn
-          @reserved_connections.delete(key)
+          @thread_cached_conns.delete(key)
         end
       end if ActiveRecord::VERSION::MAJOR < 4
 
@@ -441,8 +450,8 @@ module ActiveRecord
 
       def release(conn, owner)
         thread_id = owner.object_id
-        if @reserved_connections[thread_id] == conn
-          @reserved_connections.delete thread_id
+        if @thread_cached_conns[thread_id] == conn
+          @thread_cached_conns.delete thread_id
         end
       end
 

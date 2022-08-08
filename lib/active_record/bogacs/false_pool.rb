@@ -23,11 +23,8 @@ module ActiveRecord
         @automatic_reconnect = nil
         @lock_thread = false
 
-        @reserved_connections = ThreadSafe::Map.new #:initial_capacity => @size
+        @thread_cached_conns = ThreadSafe::Map.new #:initial_capacity => @size
       end
-
-      # @private replacement for attr_reader :connections
-      def connections; @reserved_connections.values end
 
       # @private attr_reader :reaper
       def reaper; end
@@ -41,20 +38,21 @@ module ActiveRecord
       # #connection can be called any number of times; the connection is
       # held in a hash keyed by the thread id.
       def connection
-        @reserved_connections[current_connection_id] ||= checkout
+        connection_id = current_connection_id(current_thread)
+        @thread_cached_conns[connection_id] ||= checkout
       end
 
       # Is there an open connection that is being used for the current thread?
       def active_connection?
-        conn = @reserved_connections[current_connection_id]
-        conn ? conn.in_use? : false
+        connection_id = current_connection_id(current_thread)
+        @thread_cached_conns[connection_id]
       end
 
       # Signal that the thread is finished with the current connection.
       # #release_connection releases the connection-thread association
       # and returns the connection to the pool.
-      def release_connection(with_id = current_connection_id)
-        conn = @reserved_connections.delete(with_id)
+      def release_connection(owner_thread = Thread.current)
+        conn = @thread_cached_conns.delete(current_connection_id(owner_thread))
         checkin conn if conn
       end
 
@@ -63,8 +61,11 @@ module ActiveRecord
       # connection when finished.
       def with_connection
         connection_id = current_connection_id
-        fresh_connection = true unless active_connection?
-        yield connection
+        unless conn = @thread_cached_conns[connection_id]
+          conn = connection
+          fresh_connection = true
+        end
+        yield conn
       ensure
         release_connection(connection_id) if fresh_connection
       end
@@ -72,13 +73,16 @@ module ActiveRecord
       # Returns true if a connection has already been opened.
       def connected?; @connected end
 
+      # @private replacement for attr_reader :connections
+      def connections; @thread_cached_conns.values end
+
       # Disconnects all connections in the pool, and clears the pool.
       def disconnect!
         synchronize do
           @connected = false
 
-          connections = @reserved_connections.values
-          @reserved_connections.clear
+          connections = @thread_cached_conns.values
+          @thread_cached_conns.clear
 
           connections.each do |conn|
             checkin conn
@@ -92,8 +96,8 @@ module ActiveRecord
         synchronize do
           @connected = false
 
-          connections = @reserved_connections.values
-          @reserved_connections.clear
+          connections = @thread_cached_conns.values
+          @thread_cached_conns.clear
 
           connections.each do |conn|
             checkin conn
@@ -108,7 +112,7 @@ module ActiveRecord
       def verify_active_connections!
         synchronize do
           clear_stale_cached_connections!
-          @reserved_connections.values.each(&:verify!)
+          @thread_cached_conns.values.each(&:verify!)
         end
       end if ActiveRecord::VERSION::MAJOR < 4
 
@@ -117,11 +121,11 @@ module ActiveRecord
       # @private AR 3.2 compatibility
       def clear_stale_cached_connections!
         keys = Thread.list.find_all { |t| t.alive? }.map(&:object_id)
-        keys = @reserved_connections.keys - keys
+        keys = @thread_cached_conns.keys - keys
         keys.each do |key|
-          if conn = @reserved_connections[key]
+          if conn = @thread_cached_conns[key]
             checkin conn, false # no release
-            @reserved_connections.delete(key)
+            @thread_cached_conns.delete(key)
           end
         end
       end if ActiveRecord::VERSION::MAJOR < 4
@@ -186,14 +190,14 @@ module ActiveRecord
         thread_id = owner.object_id unless owner.nil?
 
         thread_id ||=
-          if @reserved_connections[conn_id = current_connection_id] == conn
+          if @thread_cached_conns[conn_id = current_connection_id] == conn
             conn_id
           else
-            connections = @reserved_connections
+            connections = @thread_cached_conns
             connections.keys.find { |k| connections[k] == conn }
           end
 
-        @reserved_connections.delete thread_id if thread_id
+        @thread_cached_conns.delete thread_id if thread_id
       end
 
       def checkout_new_connection
