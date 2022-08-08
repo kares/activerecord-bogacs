@@ -105,9 +105,11 @@ def _download(uri, download_dir, as_file_name)
   FileUtils.rm_r temp_dir
 end
 
+MAVEN_BASE_URL = 'https://repo.maven.apache.org/maven2'
+
 namespace :tomcat do
 
-  tomcat_maven_repo = 'http://repo2.maven.org/maven2/org/apache/tomcat'
+  tomcat_maven_repo = "#{MAVEN_BASE_URL}/org/apache/tomcat"
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
   version_default = '7.0.64'
 
@@ -191,7 +193,7 @@ end
 
 namespace :dbcp do # a.k.a DBCP2
 
-  commons_repo = 'http://repo2.maven.org/maven2/org/apache/commons'
+  commons_repo = "#{MAVEN_BASE_URL}/org/apache/commons"
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
   version_default = '2.0.1'
 
@@ -213,7 +215,7 @@ end
 
 namespace :c3p0 do
 
-  mchange_base_repo = 'http://repo2.maven.org/maven2/com/mchange'
+  mchange_base_repo = "#{MAVEN_BASE_URL}/com/mchange"
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
   c3p0_version = '0.9.5'
   mchange_commons_version = '0.2.9'
@@ -242,9 +244,9 @@ end
 
 namespace :hikari do
 
-  hikari_base_repo = 'http://repo2.maven.org/maven2/com/zaxxer'
-  slf4j_base_repo = 'http://repo2.maven.org/maven2/org/slf4j'
-  javassist_base_repo = 'http://repo2.maven.org/maven2/org/javassist'
+  hikari_base_repo = "#{MAVEN_BASE_URL}/com/zaxxer"
+  slf4j_base_repo = "#{MAVEN_BASE_URL}/org/slf4j"
+  javassist_base_repo = "#{MAVEN_BASE_URL}/org/javassist"
   download_dir = File.expand_path('test/jars', File.dirname(__FILE__))
   hikari_version = '1.4.0'
   slf4j_version = '1.7.10'
