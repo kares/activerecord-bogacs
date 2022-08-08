@@ -1,11 +1,15 @@
+require 'active_record/connection_adapters/abstract/query_cache'
 
 module ActiveRecord
   module Bogacs
     module PoolSupport
 
-      #def self.included(base)
-        #base.send :include, ThreadSafe::Synchronized
-      #end
+      if ActiveRecord::ConnectionAdapters::QueryCache.const_defined? :ConnectionPoolConfiguration
+        def self.included(base)
+          base.send :include, ActiveRecord::ConnectionAdapters::QueryCache::ConnectionPoolConfiguration
+        end
+      end
+
       def lock_thread=(lock_thread)
         if lock_thread
           @lock_thread = Thread.current
