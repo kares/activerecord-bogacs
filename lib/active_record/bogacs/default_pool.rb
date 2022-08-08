@@ -82,17 +82,15 @@ module ActiveRecord
         #
         # @raise [ActiveRecord::ConnectionTimeoutError] if +timeout+ given and no element
         # becomes available after +timeout+ seconds
-        def poll(timeout = nil, &block)
-          synchronize do
-            if timeout
-              no_wait_poll || wait_poll(timeout, &block)
-            else
-              no_wait_poll
-            end
-          end
+        def poll(timeout = nil)
+          synchronize { internal_poll(timeout) }
         end
 
         private
+
+        def internal_poll(timeout)
+          no_wait_poll || (timeout && wait_poll(timeout))
+        end
 
         def synchronize(&block)
           @lock.synchronize(&block)
@@ -104,21 +102,21 @@ module ActiveRecord
         end
 
         # A thread can remove an element from the queue without
-        # waiting if an only if the number of currently available
+        # waiting if and only if the number of currently available
         # connections is strictly greater than the number of waiting
         # threads.
         def can_remove_no_wait?
           @queue.size > @num_waiting
         end
 
-        # Removes and returns the head of the queue if possible, or nil.
+        # Removes and returns the head of the queue if possible, or +nil+.
         def remove
-          @queue.shift
+          @queue.pop
         end
 
         # Remove and return the head the queue if the number of
         # available elements is strictly greater than the number of
-        # threads currently waiting. Otherwise, return nil.
+        # threads currently waiting.  Otherwise, return +nil+.
         def no_wait_poll
           remove if can_remove_no_wait?
         end
@@ -126,13 +124,10 @@ module ActiveRecord
         # Waits on the queue up to +timeout+ seconds, then removes and
         # returns the head of the queue.
         def wait_poll(timeout)
-          t0 = Time.now
-          elapsed = 0
-
           @num_waiting += 1
 
-          yield if block_given?
-
+          t0 = Time.now
+          elapsed = 0
           while true
             @cond.wait(timeout - elapsed)
 
