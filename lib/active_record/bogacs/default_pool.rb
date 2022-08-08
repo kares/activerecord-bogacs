@@ -209,6 +209,8 @@ module ActiveRecord
 
         @available = Queue.new self
 
+        @lock_thread = false
+
         initial_size = spec.config[:pool_initial] || 0
         initial_size = @size if initial_size == true
         initial_size = (@size * initial_size).to_i if initial_size <= 1.0

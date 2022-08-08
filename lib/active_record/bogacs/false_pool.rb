@@ -21,6 +21,7 @@ module ActiveRecord
         @spec = spec
         @size = nil
         @automatic_reconnect = nil
+        @lock_thread = false
 
         @reserved_connections = ThreadSafe::Map.new #:initial_capacity => @size
       end

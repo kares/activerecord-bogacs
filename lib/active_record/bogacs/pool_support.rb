@@ -6,6 +6,13 @@ module ActiveRecord
       #def self.included(base)
         #base.send :include, ThreadSafe::Synchronized
       #end
+      def lock_thread=(lock_thread)
+        if lock_thread
+          @lock_thread = Thread.current
+        else
+          @lock_thread = nil
+        end
+      end if ActiveRecord::VERSION::MAJOR > 4
 
       def new_connection
         Base.send(spec.adapter_method, spec.config)
@@ -36,6 +43,10 @@ module ActiveRecord
       end if ActiveRecord::VERSION::MAJOR < 4
 
       private
+
+      def current_thread
+        @lock_thread || Thread.current
+      end
 
       if ActiveRecord::VERSION::STRING > '4.2'
 
