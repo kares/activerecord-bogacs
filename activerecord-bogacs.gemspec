@@ -21,8 +21,9 @@ Gem::Specification.new do |gem|
   gem.test_files = gem.files.grep(%r{^test/})
   gem.require_paths = ["lib"]
 
-  gem.add_development_dependency 'concurrent-ruby', '>= 0.9' if RUBY_VERSION.index('1.8') != 0
+  gem.add_dependency 'activerecord', '>= 4.0' # depends on: concurrent-ruby ~> 1.0, >= 1.0.2
+  gem.add_development_dependency 'concurrent-ruby', '>= 0.9'
 
-  gem.add_development_dependency 'rake', '~> 10.3'
+  gem.add_development_dependency 'rake'
   gem.add_development_dependency 'test-unit', '~> 2.5'
 end

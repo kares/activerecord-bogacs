@@ -1,4 +1,5 @@
 require 'active_record/connection_adapters/abstract_adapter'
+require 'concurrent/utility/monotonic_time.rb'
 
 module ActiveRecord
   module ConnectionAdapters
@@ -96,20 +97,8 @@ module ActiveRecord
 
       unless method_defined? :seconds_idle # >= 5.2
 
-        if ActiveRecord::Bogacs::ThreadSafe.load_monotonic_clock(false)
-          include ActiveRecord::Bogacs::ThreadSafe
-
-          def monotonic_time; MONOTONIC_CLOCK.get_time end
-          private :monotonic_time
-
-        else
-
-          def monotonic_time; nil end
-          private :monotonic_time
-
-          warn "activerecord-bogacs failed to load 'concurrent-ruby', '~> 1.0', seconds_idle won't work" if $VERBOSE
-
-        end
+        def monotonic_time; ::Concurrent.monotonic_time end
+        private :monotonic_time
 
         # Seconds since this connection was returned to the pool
         def seconds_idle # :nodoc:

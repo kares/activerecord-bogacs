@@ -1,7 +1,7 @@
 require 'active_record/version'
 require 'active_record/connection_adapters/abstract/connection_pool'
 
-require 'thread'
+require 'concurrent/atomic/atomic_reference'
 
 require 'active_record/bogacs/thread_safe'
 require 'active_record/bogacs/pool_support'
@@ -22,8 +22,7 @@ module ActiveRecord
         alias_method :cheap_synchronize, :synchronize
       end
 
-      ActiveRecord::Bogacs::ThreadSafe.load_atomic_reference
-      AtomicReference = ThreadSafe::AtomicReference
+      AtomicReference = ::Concurrent::AtomicReference
 
       DEFAULT_SHARED_POOL = 0.25 # only allow 25% of the pool size to be shared
       MAX_THREAD_SHARING = 5 # not really a strict limit but should hold
