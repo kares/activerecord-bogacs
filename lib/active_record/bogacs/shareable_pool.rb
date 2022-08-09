@@ -2,6 +2,7 @@ require 'active_record/version'
 require 'active_record/connection_adapters/abstract/connection_pool'
 
 require 'concurrent/atomic/atomic_reference'
+require 'concurrent/thread_safe/util/cheap_lockable.rb'
 
 require 'active_record/bogacs/thread_safe'
 require 'active_record/bogacs/pool_support'
@@ -16,8 +17,8 @@ module ActiveRecord
     class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
       include PoolSupport
 
-      if ActiveRecord::Bogacs::ThreadSafe.load_cheap_lockable(false)
-        include ThreadSafe::CheapLockable
+      if defined? ::Concurrent::ThreadSafe::Util::CheapLockable
+        include ::Concurrent::ThreadSafe::Util::CheapLockable
       else
         alias_method :cheap_synchronize, :synchronize
       end
