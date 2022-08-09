@@ -1,10 +1,5 @@
-begin
-  require 'concurrent/executors'
-  require 'concurrent/timer_task'
-rescue LoadError => e
-  warn "activerecord-bogacs' validator feature needs gem 'concurrent-ruby', please install or add it to your Gemfile"
-  raise e
-end
+require 'concurrent/executors'
+require 'concurrent/timer_task'
 
 require 'active_record/connection_adapters/adapter_compat'
 require 'active_record/bogacs/thread_safe'
@@ -81,20 +76,19 @@ module ActiveRecord
         connections = pool.connections.dup
         connections.map! do |conn|
           if conn
-            owner = conn.owner
-            if conn.in_use? # we'll do a pool.sync-ed check ...
-              if owner && ! owner.alive? # stale-conn (reaping)
+            if owner = conn.owner
+              if owner.alive?
+                nil # owner.alive? ... do not touch
+              else # stale-conn (reaping)
                 pool.remove conn # remove is synchronized
                 conn.disconnect! rescue nil
                 nil
-              elsif ! owner # NOTE: this is likely a nasty bug
-                logger && logger.warn("[validator] found in-use connection ##{conn.object_id} without owner - removing from pool")
-                pool.remove_without_owner conn # synchronized
-                conn.disconnect! rescue nil
-                nil
-              else
-                nil # owner.alive? ... do not touch
               end
+            elsif conn.in_use? # no owner? (likely a nasty bug)
+              logger && logger.warn("[validator] found in-use connection ##{conn.object_id} without owner - removing from pool")
+              pool.remove_without_owner conn # synchronized
+              conn.disconnect! rescue nil
+              nil
             else
               conn # conn not in-use - candidate for validation
             end
@@ -170,7 +164,8 @@ module ActiveRecord
 
         def release_without_owner(conn)
           if owner_id = cached_conn_owner_id(conn)
-            thread_cached_conns.delete owner_id; return true
+            thread_cached_conns.delete owner_id
+            return true
           end
         end
 

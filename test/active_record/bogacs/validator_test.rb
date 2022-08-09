@@ -49,7 +49,7 @@ module ActiveRecord
       require 'concurrent/atomic/semaphore.rb'
       Semaphore = ::Concurrent::Semaphore
 
-      def test_selects_non_used_connections
+      def test_removes_non_used_connections_from_pool_when_collecting_connections_to_validate
         assert_equal [], validator.send(:connections)
 
         count = AtomicFixnum.new
@@ -67,15 +67,15 @@ module ActiveRecord
           pool.with_connection { |conn| assert released_conn = conn }
         }.join
 
-
         assert_equal 3, pool.connections.size
-        assert_equal 1, validator.send(:connections).size
-        assert_equal [ released_conn ], validator.send(:connections)
-
-        semaphore.release 2
+        validator.send(:connections)
+        assert_equal 2, pool.connections.size
+        assert_false pool.connections.include?(released_conn)
+      ensure
+        semaphore.release 2 if semaphore
       end
 
-      def test_auto_removes_stale_connection_from_pool_when_collecting_connections_to_validate
+      def test_removes_stale_connection_from_pool_when_collecting_connections_to_validate
         conn = connection
 
         assert_equal [], validator.send(:connections)
@@ -91,23 +91,15 @@ module ActiveRecord
         }
         while count.value < 2; sleep 0.01 end
 
-        returned_conn = nil
-        Thread.new {
-          pool.with_connection { |conn| assert returned_conn = conn }
-        }.join
-
-        assert_equal 4, pool.connections.size
+        assert_equal 3, pool.connections.size
         validate_candidates = validator.send(:connections)
-        assert_equal [ returned_conn ], validate_candidates
-        assert_equal 4, pool.connections.size
+        assert_equal 3, pool.connections.size
 
         semaphore.release(2); sleep 0.05
 
-        validate_candidates = validator.send(:connections)
-        assert_equal 2, validate_candidates.size
-        assert validate_candidates.include?(returned_conn)
-        assert ! validate_candidates.include?(stale_conn)
-        assert_equal 3, pool.connections.size
+        validator.send(:connections)
+        assert ! pool.connections.include?(stale_conn)
+        assert_equal 1, pool.connections.size
         assert ! pool.connections.map(&:object_id).include?(stale_conn.object_id)
      end
 
@@ -184,13 +176,13 @@ module ActiveRecord
       end
 
 
-      def test_validate_returns_invalid_connection_count
-        conn = connection; threads = []; invalid_conns = []
-        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05) } }
-        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05); conn.expire; invalid_conns << conn } }
-        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05) } }
-        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.05); conn.expire; invalid_conns << conn } }
-        threads.each(&:join)
+      def test_validate_returns_invalid_connection_count; require 'concurrent/array'
+        done = false; conn = connection; threads = []; invalid_conns = Concurrent::Array.new
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.2); sleep(0.1) until done } }
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.2); conn.expire; invalid_conns << conn; sleep(0.05) until done } }
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.2); sleep(0.1) until done } }
+        threads << Thread.new { pool.with_connection { |conn| thread_work(conn, 0.2); conn.expire; invalid_conns << conn; sleep(0.05) until done } }
+        sleep(0.1) until invalid_conns.size == 2 # threads.each(&:join)
         assert_equal 5, pool.connections.size
 
         invalid_conns.each { |conn| def conn.active?; false end }
@@ -203,6 +195,8 @@ module ActiveRecord
         result = validator.validate
         assert_equal 0, result
         assert_equal 3, pool.connections.size
+      ensure
+        done = true
       end
 
       private
