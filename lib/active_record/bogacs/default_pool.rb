@@ -275,7 +275,7 @@ module ActiveRecord
         end
         yield conn
       ensure
-        release_connection(connection_id) if fresh_connection
+        release_connection if fresh_connection
       end
 
       # Returns true if a connection has already been opened.

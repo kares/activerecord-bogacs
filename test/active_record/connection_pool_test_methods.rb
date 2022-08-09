@@ -159,15 +159,12 @@ module ActiveRecord
       end
 
       def test_active_connection?
-        assert_false pool.active_connection?
+        assert ! pool.active_connection?
         assert pool.connection
-        if ActiveRecord::VERSION::MAJOR >= 4
-          assert_true pool.active_connection?
-        else
-          assert pool.active_connection?
-        end
+        assert pool.active_connection? # true or returns owner thread (alias :in_use? :owner)
+        #assert_equal Thread, pool.active_connection?.class
         pool.release_connection
-        assert_false pool.active_connection?
+        assert ! pool.active_connection?
       end
 
       def test_checkout_behaviour
