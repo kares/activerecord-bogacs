@@ -10,6 +10,8 @@ module ActiveRecord
         end
       end
 
+      attr_accessor :schema_cache
+
       def lock_thread=(lock_thread)
         if lock_thread
           @lock_thread = Thread.current
@@ -19,9 +21,12 @@ module ActiveRecord
       end if ActiveRecord::VERSION::MAJOR > 4
 
       def new_connection
-        Base.send(spec.adapter_method, spec.config)
+        conn = Base.send(spec.adapter_method, spec.config)
+        conn.schema_cache = schema_cache.dup if schema_cache && conn.respond_to?(:schema_cache=)
+        conn
       end
 
+      # @private
       def current_connection_id(owner_thread = Thread.current)
         owner_thread.object_id
       end

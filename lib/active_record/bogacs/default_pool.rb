@@ -150,7 +150,7 @@ module ActiveRecord
 
       require 'active_record/bogacs/reaper.rb'
 
-      attr_accessor :automatic_reconnect, :checkout_timeout, :schema_cache
+      attr_accessor :automatic_reconnect, :checkout_timeout
       attr_reader :spec, :size, :reaper
       attr_reader :validator, :initial_size
 
