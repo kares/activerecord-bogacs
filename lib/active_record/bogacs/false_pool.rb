@@ -83,11 +83,23 @@ module ActiveRecord
 
           connections = @thread_cached_conns.values
           @thread_cached_conns.clear
-
           connections.each do |conn|
-            checkin conn
+            if conn.in_use?
+              conn.steal!
+              checkin conn
+            end
             conn.disconnect!
           end
+        end
+      end
+
+      def discard! # :nodoc:
+        synchronize do
+          return if @thread_cached_conns.nil? # already discarded
+          connections.each do |conn|
+            conn.discard!
+          end
+          @thread_cached_conns = nil
         end
       end
 
@@ -100,7 +112,10 @@ module ActiveRecord
           @thread_cached_conns.clear
 
           connections.each do |conn|
-            checkin conn
+            if conn.in_use?
+              conn.steal!
+              checkin conn
+            end
             conn.disconnect! if conn.requires_reloading?
           end
         end
@@ -120,11 +135,11 @@ module ActiveRecord
       # are no longer alive.
       # @private AR 3.2 compatibility
       def clear_stale_cached_connections!
-        keys = Thread.list.find_all { |t| t.alive? }.map(&:object_id)
+        keys = Thread.list.find_all { |t| t.alive? }.map { |t| current_connection_id(t) }
         keys = @thread_cached_conns.keys - keys
         keys.each do |key|
           if conn = @thread_cached_conns[key]
-            checkin conn, false # no release
+            checkin conn, true # no release
             @thread_cached_conns.delete(key)
           end
         end
@@ -150,13 +165,9 @@ module ActiveRecord
       # @param conn [ActiveRecord::ConnectionAdapters::AbstractAdapter] connection
       # object, which was obtained earlier by calling #checkout on this pool
       # @see #checkout
-      def checkin(conn, do_release = true)
-        release(conn) if do_release
-        #synchronize do
-          _run_checkin_callbacks(conn)
-          #release conn
-          #@available.add conn
-        #end
+      def checkin(conn, released = nil)
+        release(conn) unless released
+        _run_checkin_callbacks(conn)
       end
 
       # Remove a connection from the connection pool.  The connection will
@@ -168,6 +179,21 @@ module ActiveRecord
       # @private
       def reap
         # we do not really manage the connection pool - nothing to do ...
+      end
+
+      def flush(minimum_idle = nil)
+        # we do not really manage the connection pool
+      end
+
+      def flush!
+        reap
+        flush(-1)
+      end
+
+      def stat
+        {
+          connections: connections.size
+        }
       end
 
       private
@@ -186,8 +212,8 @@ module ActiveRecord
         checkout_new_connection
       end
 
-      def release(conn, owner = nil)
-        thread_id = owner.object_id unless owner.nil?
+      def release(conn, owner = conn.owner)
+        thread_id = current_connection_id(owner) unless owner.nil?
 
         thread_id ||=
           if @thread_cached_conns[conn_id = current_connection_id] == conn
