@@ -4,10 +4,15 @@ module ActiveRecord::Bogacs
     if defined? JRUBY_VERSION
       module Synchronized
         require 'jruby'
-        # Use Java's native synchronized (this) { wait(); notifyAll(); } to avoid
-        # the overhead of the extra Mutex objects
-        def synchronize
-          ::JRuby.reference0(self).synchronized { yield }
+
+        if defined? ::JRuby::Util.synchronized # since JRuby 9.3
+          def synchronize
+            ::JRuby::Util.synchronized(self) { yield }
+          end
+        else
+          def synchronize
+            ::JRuby.reference0(self).synchronized { yield }
+          end
         end
       end
     else
