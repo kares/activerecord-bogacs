@@ -15,8 +15,24 @@ module ActiveRecord
 
         elsif ActiveRecord::VERSION::MAJOR > 4
 
-          # @private added @idle_since
           # this method must only be called while holding connection pool's mutex
+          def lease
+            if in_use?
+              msg = "Cannot lease connection, ".dup
+              if @owner == Thread.current
+                msg << "it is already leased by the current thread."
+              else
+                msg << "it is already in use by a different thread: #{@owner}. " \
+                       "Current thread: #{Thread.current}."
+              end
+              raise ActiveRecordError, msg
+            end
+
+            @owner = Thread.current
+          end
+
+          # this method must only be called while holding connection pool's mutex
+          # @private AR 5.2
           def expire
             if in_use?
               if @owner != Thread.current
@@ -25,7 +41,8 @@ module ActiveRecord
                   "Current thread: #{Thread.current}."
               end
 
-              @owner = nil; @idle_since = monotonic_time
+              @idle_since = ::Concurrent.monotonic_time
+              @owner = nil
             else
               raise ActiveRecordError, "Cannot expire connection, it is not currently leased."
             end
@@ -42,7 +59,7 @@ module ActiveRecord
 
           # @private added @idle_since
           def expire
-            @owner = nil; @idle_since = monotonic_time
+            @owner = nil; @idle_since = ::Concurrent.monotonic_time
           end
 
         end
@@ -74,7 +91,7 @@ module ActiveRecord
           end
 
           def expire
-            @in_use = false; @owner = nil; @idle_since = monotonic_time
+            @in_use = false; @owner = nil; @idle_since = ::Concurrent.monotonic_time
           end
 
         else
@@ -88,22 +105,32 @@ module ActiveRecord
           end
 
           def expire
-            @owner = nil; @idle_since = monotonic_time
+            @owner = nil; @idle_since = ::Concurrent.monotonic_time
           end
 
         end
 
       end
 
-      unless method_defined? :seconds_idle # >= 5.2
+      # this method must only be called while holding connection pool's mutex (and a desire for segfaults)
+      def steal! # :nodoc:
+        if in_use?
+          if @owner != Thread.current
+            pool.send :release, self, @owner # release exists in both default/false pool
 
-        def monotonic_time; ::Concurrent.monotonic_time end
-        private :monotonic_time
+            @owner = Thread.current
+          end
+        else
+          raise ActiveRecordError, "Cannot steal connection, it is not currently leased."
+        end
+      end
+
+      unless method_defined? :seconds_idle # >= 5.2
 
         # Seconds since this connection was returned to the pool
         def seconds_idle # :nodoc:
           return 0 if in_use?
-          time = monotonic_time
+          time = ::Concurrent.monotonic_time
           time - ( @idle_since || time )
         end
 
