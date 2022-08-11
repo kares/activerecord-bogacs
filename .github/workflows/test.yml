@@ -62,6 +62,8 @@ jobs:
 
       - name: download jars
         run: jruby -rbundler/setup -S rake tomcat:jndi:download tomcat:jdbc:download tomcat:dbcp:download hikari:download
+        shell: bash
 
       - name: rake test
         run: jruby -rbundler/setup -S rake test
+        shell: bash
