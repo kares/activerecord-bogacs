@@ -146,6 +146,22 @@ module ActiveRecord
         end
       end
 
+      # Connections must be leased while holding the main pool mutex. This is
+      # an internal subclass that also +.leases+ returned connections while
+      # still in queue's critical section (queue synchronizes with the same
+      # <tt>@lock</tt> as the main pool) so that a returned connection is already
+      # leased and there is no need to re-enter synchronized block.
+      class ConnectionLeasingQueue < Queue # :nodoc:
+        #include BiasableQueue
+
+        private
+        def internal_poll(timeout)
+          conn = super
+          conn.lease if conn
+          conn
+        end
+      end
+
       include PoolSupport
       include MonitorMixin # TODO consider avoiding ?!
 
@@ -214,7 +230,7 @@ module ActiveRecord
 
         @threads_blocking_new_connections = 0 # TODO: dummy for now
 
-        @available = Queue.new self
+        @available = ConnectionLeasingQueue.new self
 
         @lock_thread = false
 
