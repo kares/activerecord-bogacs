@@ -112,13 +112,8 @@ end
 module ActiveRecord
   module Bogacs
 
-    begin
-      require 'concurrent/atomic/atomic_reference'
-      Atomic = Concurrent::AtomicReference
-    rescue LoadError
-      require 'atomic'
-      Atomic = ::Atomic
-    end
+    require 'concurrent/atomic/atomic_reference'
+    Atomic = Concurrent::AtomicReference
 
     module TestHelper
 
@@ -226,8 +221,8 @@ module ActiveRecord
       @@setup_jdbc_context = nil
 
       def setup_jdbc_context!
-        load 'test/jars/tomcat-juli.jar'
-        load 'test/jars/tomcat-catalina.jar'
+        load_jar 'test/jars/tomcat-juli.jar'
+        load_jar 'test/jars/tomcat-catalina.jar'
 
         java.lang.System.set_property(
             javax.naming.Context::INITIAL_CONTEXT_FACTORY,
@@ -251,7 +246,7 @@ module ActiveRecord
       end
 
       def build_tomcat_jdbc_data_source(ar_jdbc_config = AR_CONFIG)
-        load 'test/jars/tomcat-jdbc.jar'
+        load_jar 'test/jars/tomcat-jdbc.jar'
 
         data_source = org.apache.tomcat.jdbc.pool.DataSource.new
         configure_dbcp_data_source(data_source, ar_jdbc_config)
@@ -262,7 +257,7 @@ module ActiveRecord
       end
 
       def build_tomcat_dbcp_data_source(ar_jdbc_config = AR_CONFIG)
-        load 'test/jars/tomcat-dbcp.jar'
+        load_jar 'test/jars/tomcat-dbcp.jar'
 
         data_source = org.apache.tomcat.dbcp.dbcp.BasicDataSource.new
         configure_dbcp_data_source(data_source, ar_jdbc_config)
@@ -273,7 +268,7 @@ module ActiveRecord
       end
 
       def build_commons_dbcp_data_source(ar_jdbc_config = AR_CONFIG)
-        load Dir.glob('test/jars/{commons-dbcp}*.jar').first
+        load_jar Dir.glob('test/jars/{commons-dbcp}*.jar').first
 
         data_source = org.apache.tomcat.dbcp.dbcp.BasicDataSource.new
         configure_dbcp_data_source(data_source, ar_jdbc_config)
@@ -327,7 +322,7 @@ module ActiveRecord
       private :configure_dbcp_data_source
 
       def build_c3p0_data_source(ar_jdbc_config = AR_CONFIG)
-        Dir.glob('test/jars/{c3p0,mchange-commons}*.jar').each { |jar| load jar }
+        Dir.glob('test/jars/{c3p0,mchange-commons}*.jar').each { |jar| load_jar jar }
 
         data_source = com.mchange.v2.c3p0.ComboPooledDataSource.new
         configure_c3p0_data_source(data_source, ar_jdbc_config)
@@ -373,15 +368,15 @@ module ActiveRecord
 
 
       def build_hikari_data_source(ar_jdbc_config = AR_CONFIG)
-        unless hikari_jar = Dir.glob('test/jars/HikariCP*.jar').last
+        unless hikari_jar = Dir.glob('test/jars/HikariCP*.jar').sort.last
           raise 'HikariCP jar not found in test/jars directory'
         end
         if ( version = File.basename(hikari_jar, '.jar').match(/\-([\w\.\-]$)/) ) && version[1] < '2.3.9'
-          Dir.glob('test/jars/{javassist,slf4j}*.jar').each { |jar| require jar }
+          Dir.glob('test/jars/{javassist,slf4j}*.jar').each { |jar| load_jar jar }
         else
-          Dir.glob('test/jars/{slf4j}*.jar').each { |jar| require jar }
+          Dir.glob('test/jars/{slf4j}*.jar').each { |jar| load_jar jar }
         end
-        require hikari_jar
+        load_jar hikari_jar
 
         configure_hikari_data_source(ar_jdbc_config)
       end
@@ -477,6 +472,16 @@ module ActiveRecord
       end
 
       def jndi_name; 'jdbc/TestDB' end
+
+      private
+
+      def load_jar(jar)
+        abs_jar = File.expand_path(jar)
+        unless File.file?(abs_jar)
+          raise "path does not exist or is not a file: #{jar}"
+        end
+        load abs_jar
+      end
 
     end
   end
