@@ -9,10 +9,9 @@ Gem::Specification.new do |gem|
   gem.authors = ['Karol Bucek']
   gem.email = ['self@kares.org']
   gem.description = %q{Improved ActiveRecord::ConnectionAdapters::ConnectionPool alternatives}
-  gem.summary = 'Bogacs contains several pool implementations that can be used as a replacement ' <<
-  "for ActiveRecord's built-in pool, e.g. DefaultPool is an upstream tuned version with an API " <<
-  'that is compatible with older AR versions.' <<
-  "\n\nNOTE: you'll need concurrent-ruby or thread_safe gem."
+  gem.summary = 'Bogacs contains several pool implementations that can be used as a replacement ' +
+  "for ActiveRecord's built-in pool, e.g. DefaultPool is an upstream tuned version with an API " +
+  'that is compatible with older AR versions.'
   gem.homepage = "http://github.com/kares/activerecord-bogacs"
   gem.licenses = ['MIT']
 
@@ -21,8 +20,8 @@ Gem::Specification.new do |gem|
   gem.test_files = gem.files.grep(%r{^test/})
   gem.require_paths = ["lib"]
 
-  gem.add_dependency 'activerecord', '>= 4.0' # depends on: concurrent-ruby ~> 1.0, >= 1.0.2
-  gem.add_development_dependency 'concurrent-ruby', '>= 0.9'
+  gem.add_dependency 'activerecord', '< 6' # '>= 4.0' # depends on: concurrent-ruby ~> 1.0, >= 1.0.2
+  gem.add_dependency 'concurrent-ruby', '~> 1.0'
 
   gem.add_development_dependency 'rake'
   gem.add_development_dependency 'test-unit', '~> 2.5'
