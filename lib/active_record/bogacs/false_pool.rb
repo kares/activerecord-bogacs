@@ -19,6 +19,8 @@ module ActiveRecord
       attr_reader :size, :spec
 
       def initialize(spec)
+        super()
+
         @spec = spec
         @size = nil
         @automatic_reconnect = nil

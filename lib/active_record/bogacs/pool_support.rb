@@ -4,11 +4,9 @@ module ActiveRecord
   module Bogacs
     module PoolSupport
 
-      if ActiveRecord::ConnectionAdapters::QueryCache.const_defined? :ConnectionPoolConfiguration
-        def self.included(base)
-          base.send :include, ActiveRecord::ConnectionAdapters::QueryCache::ConnectionPoolConfiguration
-        end
-      end
+      def self.included(base)
+        base.send :include, ActiveRecord::ConnectionAdapters::QueryCache::ConnectionPoolConfiguration
+      end if ActiveRecord::ConnectionAdapters::QueryCache.const_defined? :ConnectionPoolConfiguration
 
       attr_accessor :schema_cache
 
@@ -30,6 +28,7 @@ module ActiveRecord
       def current_connection_id(owner_thread = Thread.current)
         owner_thread.object_id
       end
+      alias_method :connection_cache_key, :current_connection_id # for AR (5.2) compatibility
 
       # @note Method not part of the pre 4.0 API (does no exist).
       def remove(conn)
