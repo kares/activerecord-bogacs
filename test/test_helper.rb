@@ -294,11 +294,9 @@ module ActiveRecord
             properties.each { |name, value| db_properties.put(name, value.to_s) }
             data_source.setDbProperties db_properties
           else # Tomcat-DBCP / Commons DBCP2
-            # format of the string must be: [propertyName=property;]
-            connection_properties = properties.inject('') do
-              |str, name, val| str << "[#{name}=#{val};]"; str
+            properties.each do |name, val|
+              data_source.addConnectionProperty name, val
             end
-            data_source.setConnectionProperties connection_properties
           end
         end
         # JDBC pool tunings (some mapped from AR configuration) :
