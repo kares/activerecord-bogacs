@@ -1,5 +1,7 @@
 require 'active_record/version'
 
+require 'concurrent/atomic/atomic_boolean'
+
 require 'active_record/bogacs/pool_support'
 require 'active_record/bogacs/thread_safe'
 
@@ -16,14 +18,14 @@ module ActiveRecord
       attr_reader :size, :spec
 
       def initialize(spec)
-        @connected = nil
-
         @spec = spec
         @size = nil
         @automatic_reconnect = nil
         @lock_thread = false
 
-        @thread_cached_conns = ThreadSafe::Map.new #:initial_capacity => @size
+        @thread_cached_conns = ThreadSafe::Map.new
+
+        @connected = ::Concurrent::AtomicBoolean.new
       end
 
       # @private attr_reader :reaper
@@ -71,7 +73,7 @@ module ActiveRecord
       end
 
       # Returns true if a connection has already been opened.
-      def connected?; @connected end
+      def connected?; @connected.true? end
 
       # @private replacement for attr_reader :connections
       def connections; @thread_cached_conns.values end
@@ -79,7 +81,7 @@ module ActiveRecord
       # Disconnects all connections in the pool, and clears the pool.
       def disconnect!
         synchronize do
-          @connected = false
+          @connected.make_false
 
           connections = @thread_cached_conns.values
           @thread_cached_conns.clear
@@ -96,6 +98,8 @@ module ActiveRecord
       def discard! # :nodoc:
         synchronize do
           return if @thread_cached_conns.nil? # already discarded
+          @connected.make_false
+
           connections.each do |conn|
             conn.discard!
           end
@@ -106,7 +110,7 @@ module ActiveRecord
       # Clears the cache which maps classes.
       def clear_reloadable_connections!
         synchronize do
-          @connected = false
+          @connected.make_false
 
           connections = @thread_cached_conns.values
           @thread_cached_conns.clear
@@ -238,8 +242,8 @@ module ActiveRecord
           raise ConnectionTimeoutError, e.message if timeout_error?(e)
           raise e
         end
+        @connected.make_true
         conn.pool = self
-        synchronize { @connected = true } if @connected != true
         conn
       end
 

@@ -1,7 +1,8 @@
+require 'active_record/version'
+
 require 'thread'
 require 'monitor'
-
-require 'active_record/version'
+require 'concurrent/atomic/atomic_boolean'
 
 require 'active_record/connection_adapters/adapter_compat'
 require 'active_record/bogacs/pool_support'
@@ -217,6 +218,8 @@ module ActiveRecord
 
         @lock_thread = false
 
+        @connected = ::Concurrent::AtomicBoolean.new
+
         initial_size = spec.config[:pool_initial] || 0
         initial_size = @size if initial_size == true
         initial_size = (@size * initial_size).to_i if initial_size <= 1.0
@@ -282,7 +285,7 @@ module ActiveRecord
       #
       # @return [true, false]
       def connected?
-        @connections.size > 0 # synchronize { @connections.any? }
+        @connected.true? # synchronize { @connections.any? }
       end
 
       # Returns an array containing the connections currently in the pool.
@@ -303,6 +306,8 @@ module ActiveRecord
       # Disconnects all connections in the pool, and clears the pool.
       def disconnect!
         synchronize do
+          @connected.make_false
+
           @thread_cached_conns.clear
           @connections.each do |conn|
             if conn.in_use?
@@ -324,6 +329,8 @@ module ActiveRecord
       def discard! # :nodoc:
         synchronize do
           return if @connections.nil? # already discarded
+          @connected.make_false
+
           @connections.each do |conn|
             conn.discard!
           end
@@ -345,6 +352,8 @@ module ActiveRecord
           @connections.each do |conn|
             @available.add conn
           end
+
+          @connected.value = @connections.any?
         end
       end
 
@@ -418,6 +427,8 @@ module ActiveRecord
           @connections.delete conn
           @available.delete conn
 
+          @connected.value = @connections.any?
+
           needs_new_connection = @available.any_waiting?
         end
 
@@ -467,6 +478,8 @@ module ActiveRecord
 
             @available.delete conn
             @connections.delete conn
+
+            @connected.value = @connections.any?
           end
         end
 
@@ -591,7 +604,9 @@ module ActiveRecord
 
       def checkout_new_connection
         raise ConnectionNotEstablished unless @automatic_reconnect
-        new_connection
+        conn = new_connection
+        @connected.make_true
+        conn
       end
 
       def checkout_and_verify(conn)
