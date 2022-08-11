@@ -391,7 +391,13 @@ module ActiveRecord
 
         case driver
         when /mysql/i
-          hikari_config.setDataSourceClassName 'com.mysql.jdbc.jdbc2.optional.MysqlDataSource'
+          puts "DRIVER: #{driver.inspect}"
+          data_source_class_name = if driver == 'com.mysql.cj.jdbc.Driver'
+            'com.mysql.cj.jdbc.MysqlDataSource' # driver 8.0
+          else
+            'com.mysql.jdbc.jdbc2.optional.MysqlDataSource' # old 5.x
+          end
+          hikari_config.setDataSourceClassName data_source_class_name
           hikari_config.addDataSourceProperty 'serverName', ar_jdbc_config[:host] || 'localhost'
           hikari_config.addDataSourceProperty 'databaseName', ar_jdbc_config[:database]
           hikari_config.addDataSourceProperty 'port', ar_jdbc_config[:port] if ar_jdbc_config[:port]
