@@ -14,12 +14,15 @@ jobs:
         image: mysql:5.7
         env:
             MYSQL_ALLOW_EMPTY_PASSWORD: yes
+            MYSQL_ROOT_PASSWORD: root
             MYSQL_DATABASE: ar_bogacs
         ports:
             - 3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
     env:
       AR_ADAPTER: mysql2
+      AR_USERNAME: root
+      AR_PASSWORD: root
       AR_VERSION: "~> 4.2"
       HIKARI_VERSION: 2.3.12
 
@@ -38,6 +41,9 @@ jobs:
             ruby-version: jruby-9.2.9.0
           - java-version: 8
             ruby-version: jruby-9.1.17.0
+            env:
+              AR_VERSION: "~> 4.1.14"
+
       fail-fast: false
 
     steps:
