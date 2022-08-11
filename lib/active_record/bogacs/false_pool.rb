@@ -221,14 +221,14 @@ module ActiveRecord
         thread_id = current_connection_id(owner) unless owner.nil?
 
         thread_id ||=
-          if @thread_cached_conns[conn_id = current_connection_id] == conn
+          if @thread_cached_conns[conn_id = current_connection_id].equal?(conn)
             conn_id
           else
             connections = @thread_cached_conns
-            connections.keys.find { |k| connections[k] == conn }
+            connections.keys.find { |k| connections[k].equal?(conn) }
           end
 
-        @thread_cached_conns.delete thread_id if thread_id
+        @thread_cached_conns.delete_pair(thread_id, conn) if thread_id
       end
 
       def checkout_new_connection
