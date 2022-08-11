@@ -101,6 +101,20 @@ module ActiveRecord
         end
 
         # @override
+        def test_checkout_after_close
+          connection = pool.connection
+          assert connection.in_use?
+          assert_equal connection.object_id, pool.connection.object_id
+
+          connection.close # pool.checkin conn
+          assert ! connection.in_use?
+
+          # NOTE: we do not care for connection re-use - it's okay to instantiate a new one
+          #assert_equal connection.object_id, pool.connection.object_id
+          assert pool.connection.in_use?
+        end
+
+        # @override
         def test_remove_connection
           conn = pool.checkout
           assert conn.in_use?
@@ -214,10 +228,27 @@ module ActiveRecord
           threads && threads.each(&:join)
         end
 
+        # @override
+        def test_pooled_connection_checkin_two
+          checkout_checkin_connections_loop 2, 3
+
+          assert_equal 3, @connection_count
+          assert_equal 0, @timed_out
+          assert_equal 1, @pool.connections.size
+        end
+
         protected
 
         def unwrap_connection(connection)
           connection.jdbc_connection(true)
+        end
+
+        def change_pool_size(size)
+          # noop - @pool.instance_variable_set(:@size, size)
+        end
+
+        def change_pool_checkout_timeout(timeout)
+          # noop - @pool.instance_variable_set(:@checkout_timeout, timeout)
         end
 
       end
@@ -270,7 +301,6 @@ module ActiveRecord
         end
 
       end
-
 
       class ConnectionPoolWrappingHikariDataSourceTest < TestBase
         include ConnectionPoolWrappingDataSourceTestMethods

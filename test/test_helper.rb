@@ -24,6 +24,8 @@ require 'arjdbc' if defined? JRUBY_VERSION
 require 'logger'
 ActiveRecord::Base.logger = Logger.new(STDOUT)
 
+puts "testing with ActiveRecord #{ActiveRecord::VERSION::STRING}"
+
 #shared_pool = ENV['AR_POOL_SHARED'] ? # with AR_POOL_SHARED=true use default
 #  ( ENV['AR_POOL_SHARED'] == 'true' ? shared_pool : ENV['AR_POOL_SHARED'] ) :
 #    shared_pool

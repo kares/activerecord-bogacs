@@ -16,12 +16,13 @@ module ActiveRecord
       def test_checkout_after_close
         connection = pool.connection
         assert connection.in_use?
+        assert_equal connection.object_id, pool.connection.object_id
 
-        connection.close
+        connection.close # pool.checkin conn
         assert ! connection.in_use?
 
-        assert_equal connection, pool.connection
-        # assert pool.connection.in_use?
+        assert_equal connection.object_id, pool.connection.object_id
+        assert pool.connection.in_use?
       end
 
       def test_released_connection_moves_between_threads
@@ -329,7 +330,7 @@ module ActiveRecord
 
       def test_pooled_connection_remove
         # ActiveRecord::Base.establish_connection(@connection.merge({:pool => 2, :checkout_timeout => 0.5}))
-        @pool.instance_variable_set(:@size, 2)
+        change_pool_size(2)
         # old_connection = ActiveRecord::Base.connection
         old_connection = @pool.connection
         # extra_connection = ActiveRecord::Base.connection_pool.checkout
@@ -337,11 +338,12 @@ module ActiveRecord
         # ActiveRecord::Base.connection_pool.remove(extra_connection)
         @pool.remove(extra_connection)
         # assert_equal ActiveRecord::Base.connection, old_connection
-        assert_equal @pool.connection, old_connection
+        assert_equal old_connection.object_id, @pool.connection.object_id
       end
 
       def test_pooled_connection_checkin_two
         checkout_checkin_connections_loop 2, 3
+
         assert_equal 3, @connection_count
         assert_equal 0, @timed_out
         # assert_equal 2, ActiveRecord::Base.connection_pool.connections.size
@@ -352,8 +354,8 @@ module ActiveRecord
 
       def checkout_checkin_connections_loop(pool_size, loops)
         # ActiveRecord::Base.establish_connection(@connection.merge({:pool => pool_size, :checkout_timeout => 0.5}))
-        @pool.instance_variable_set(:@size, pool_size)
-        @pool.instance_variable_set(:@checkout_timeout, 0.5)
+        change_pool_size(pool_size)
+        change_pool_checkout_timeout(0.5)
 
         @connection_count = 0; @timed_out = 0
         loops.times do
@@ -371,6 +373,14 @@ module ActiveRecord
             @timed_out += 1
           end
         end
+      end
+
+      def change_pool_size(size)
+        @pool.instance_variable_set(:@size, size)
+      end
+
+      def change_pool_checkout_timeout(timeout)
+        @pool.instance_variable_set(:@checkout_timeout, timeout)
       end
 
       private
