@@ -612,6 +612,10 @@ module ActiveRecord
       def checkout_and_verify(conn)
         _run_checkout_callbacks(conn)
         conn
+      rescue => e
+        remove conn
+        conn.disconnect!
+        raise e
       end
 
       def prefill_initial_connections
