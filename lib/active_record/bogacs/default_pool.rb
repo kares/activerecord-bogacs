@@ -19,13 +19,9 @@ module ActiveRecord
     # http://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/ConnectionPool.html
     #
     class DefaultPool
-      # Threadsafe, fair, FIFO queue. Meant to be used by ConnectionPool
-      # with which it shares a Monitor. But could be a generic Queue.
-      #
-      # The Queue in stdlib's 'thread' could replace this class except
-      # stdlib's doesn't support waiting with a timeout.
+
       # @private
-      class Queue
+      class Queue # ConnectionLeasingQueue
         def initialize(lock)
           @lock = lock
           @cond = @lock.new_cond
@@ -90,7 +86,16 @@ module ActiveRecord
         private
 
         def internal_poll(timeout)
-          no_wait_poll || (timeout && wait_poll(timeout))
+          conn = no_wait_poll || (timeout && wait_poll(timeout))
+          # Connections must be leased while holding the main pool mutex. This is
+          # an internal subclass that also +.leases+ returned connections while
+          # still in queue's critical section (queue synchronizes with the same
+          # <tt>@lock</tt> as the main pool) so that a returned connection is already
+          # leased and there is no need to re-enter synchronized block.
+          #
+          # NOTE: avoid the need for ConnectionLeasingQueue, since BiasableQueue is not implemented
+          conn.lease if conn
+          conn
         end
 
         def synchronize(&block)
@@ -143,22 +148,6 @@ module ActiveRecord
           end
         ensure
           @num_waiting -= 1
-        end
-      end
-
-      # Connections must be leased while holding the main pool mutex. This is
-      # an internal subclass that also +.leases+ returned connections while
-      # still in queue's critical section (queue synchronizes with the same
-      # <tt>@lock</tt> as the main pool) so that a returned connection is already
-      # leased and there is no need to re-enter synchronized block.
-      class ConnectionLeasingQueue < Queue # :nodoc:
-        #include BiasableQueue
-
-        private
-        def internal_poll(timeout)
-          conn = super
-          conn.lease if conn
-          conn
         end
       end
 
@@ -230,7 +219,7 @@ module ActiveRecord
 
         @threads_blocking_new_connections = 0 # TODO: dummy for now
 
-        @available = ConnectionLeasingQueue.new self
+        @available = Queue.new self
 
         @lock_thread = false
 
