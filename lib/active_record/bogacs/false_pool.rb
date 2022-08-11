@@ -155,12 +155,12 @@ module ActiveRecord
       # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       # @raise [ActiveRecord::ConnectionTimeoutError] no connection can be obtained from the pool
       def checkout
-        #synchronize do
-          conn = checkout_new_connection # acquire_connection
+        conn = checkout_new_connection # acquire_connection
+        synchronize do
           conn.lease
           _run_checkout_callbacks(conn) # checkout_and_verify(conn)
-          conn
-        #end
+        end
+        conn
       end
 
       # Check-in a database connection back into the pool, indicating that you
