@@ -16,14 +16,6 @@ else
   gem 'activerecord', :require => nil
 end
 
-if RUBY_VERSION.index('1.8') == 0
-  gem 'i18n', '< 0.7.0' # Gem::InstallError: i18n requires Ruby version >= 1.9.3
-  gem 'atomic', '1.1.16' # concurrent-ruby gem only for Ruby version >= 1.9.3
-  gem 'thread_safe', '~> 0.3'
-else
-  gem 'concurrent-ruby', '~> 1.0.0', :require => nil
-end
-
 platform :jruby do
   if version = ENV['AR_JDBC_VERSION']
     if version.index('/') && ::File.exist?(version)
@@ -40,15 +32,10 @@ platform :jruby do
   end
 end
 
-#gem 'thread_safe', :require => nil # "optional" - we can roll without it
-
-if defined?(JRUBY_VERSION) && JRUBY_VERSION < '1.7.0'
-gem 'jruby-openssl', :platform => :jruby
-end
-
 group :test do
   gem 'jdbc-mysql', :require => nil, :platform => :jruby
   gem 'jdbc-postgres', :require => nil, :platform => :jruby
+  gem 'jdbc-sqlite3', :require => nil, :platform => :jruby
 
   gem 'mysql2', :require => nil, :platform => :mri
   gem 'pg', :require => nil, :platform => :mri
