@@ -23,6 +23,7 @@ jobs:
       AR_ADAPTER: mysql2
       AR_USERNAME: root
       AR_PASSWORD: root
+      AR_HOST: 127.0.0.1
       AR_VERSION: "~> 4.2"
       HIKARI_VERSION: 2.3.12
 
