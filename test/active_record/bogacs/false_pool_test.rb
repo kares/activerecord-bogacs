@@ -165,6 +165,7 @@ module ActiveRecord
           t1 = Thread.new do
             begin
               conn = ActiveRecord::Base.connection
+              conn.tables # force connection
               t1_ready.push(conn)
               t1_block.pop # await
             rescue => e
@@ -179,6 +180,7 @@ module ActiveRecord
             threads << Thread.new do
               begin
                 conn = ActiveRecord::Base.connection
+                conn.tables # force connection
                 threads_block.update { |v| v + 1 }
                 threads_ready << i
                 while threads_block.value != -1 # await
@@ -200,7 +202,7 @@ module ActiveRecord
 
           t2 = Thread.new do
             begin
-              ActiveRecord::Base.connection
+              ActiveRecord::Base.connection.tap { |conn| conn.tables }
             rescue => e
               puts "t2 thread failed: #{e.inspect}"
             end
@@ -240,7 +242,15 @@ module ActiveRecord
         protected
 
         def unwrap_connection(connection)
-          connection.jdbc_connection(true)
+          # NOTE: AR-JDBC 5X messed up jdbc_connection(true) - throws a NPE, work-around:
+          connection.tables # force underlying connection into an initialized state ^^^
+
+          jdbc_connection = connection.jdbc_connection(true)
+          begin
+            jdbc_connection.delegate
+          rescue NoMethodError
+            jdbc_connection
+          end
         end
 
         def change_pool_size(size)
@@ -294,11 +304,6 @@ module ActiveRecord
         end
 
         protected
-
-        def unwrap_connection(connection)
-          connection = connection.jdbc_connection(true)
-          connection.delegate
-        end
 
       end
 
