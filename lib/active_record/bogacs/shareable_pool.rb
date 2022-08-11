@@ -17,11 +17,7 @@ module ActiveRecord
     class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
       include PoolSupport
 
-      if defined? ::Concurrent::ThreadSafe::Util::CheapLockable
-        include ::Concurrent::ThreadSafe::Util::CheapLockable
-      else
-        alias_method :cheap_synchronize, :synchronize
-      end
+      include ThreadSafe::Synchronized
 
       AtomicReference = ::Concurrent::AtomicReference
 
@@ -60,7 +56,7 @@ module ActiveRecord
       def release_connection(with_id = current_connection_id)
         if reserved_conn = @reserved_connections[with_id]
           if shared_count = @shared_connections[reserved_conn]
-            cheap_synchronize do # lock due #get_shared_connection ... not needed ?!
+            synchronize do # lock due #get_shared_connection ... not needed ?!
               # NOTE: the other option is to not care about shared here at all ...
               if shared_count.get == 0 # releasing a shared connection
                 release_shared_connection(reserved_conn)
@@ -75,18 +71,18 @@ module ActiveRecord
 
       # @override
       def disconnect!
-        cheap_synchronize { @shared_connections.clear; super }
+        synchronize { @shared_connections.clear; super }
       end
 
       # @override
       def clear_reloadable_connections!
-        cheap_synchronize { @shared_connections.clear; super }
+        synchronize { @shared_connections.clear; super }
       end
 
       # @override
       # @note called from #reap thus the pool should work with reaper
       def remove(conn)
-        cheap_synchronize { @shared_connections.delete(conn); super }
+        synchronize { @shared_connections.delete(conn); super }
       end
 
 #      # Return any checked-out connections back to the pool by threads that
@@ -135,7 +131,7 @@ module ActiveRecord
             emulated_checkout(connection); shared = true
             DEBUG && debug("with_shared_conn 20 got shared = #{connection.to_s}")
           else
-            cheap_synchronize do
+            synchronize do
               # check shared again as/if threads end up sync-ing up here :
               if connection = get_shared_connection
                 emulated_checkout(connection)
@@ -218,7 +214,7 @@ module ActiveRecord
         end
 
         # we did as much as could without a lock - now sync due possible release
-        cheap_synchronize do # TODO although this likely might be avoided ...
+        synchronize do # TODO although this likely might be avoided ...
           # should try again if possibly the same connection got released :
           unless least_count = @shared_connections[least_shared]
             DEBUG && debug(" get_shared_conn retry (connection got released)")
@@ -238,7 +234,7 @@ module ActiveRecord
       def rem_shared_connection(connection)
         if shared_count = @shared_connections[connection]
            # shared_count.update { |v| v - 1 } # NOTE: likely fine without lock!
-           cheap_synchronize do # give it back to the pool
+           synchronize do # give it back to the pool
              shared_count.update { |v| v - 1 } # might give it back if :
              release_shared_connection(connection) if shared_count.get == 0
            end
