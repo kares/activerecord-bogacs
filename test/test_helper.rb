@@ -158,7 +158,9 @@ module ActiveRecord
       module_function
 
       def current_connection_config
-        if ActiveRecord::Base.respond_to?(:connection_config)
+        if ActiveRecord::Base.connection.respond_to?(:config)
+          ActiveRecord::Base.connection.config # always an updated config, e.g. after mysql2_connection(config)
+        elsif ActiveRecord::Base.respond_to?(:connection_config)
           ActiveRecord::Base.connection_config
         else
           ActiveRecord::Base.connection_pool.spec.config
@@ -297,7 +299,7 @@ module ActiveRecord
             data_source.setDbProperties db_properties
           else # Tomcat-DBCP / Commons DBCP2
             properties.each do |name, val|
-              data_source.addConnectionProperty name, val
+              data_source.addConnectionProperty name, val.to_s
             end
           end
         end
@@ -391,7 +393,6 @@ module ActiveRecord
 
         case driver
         when /mysql/i
-          puts "DRIVER: #{driver.inspect}"
           data_source_class_name = if driver == 'com.mysql.cj.jdbc.Driver'
             'com.mysql.cj.jdbc.MysqlDataSource' # driver 8.0
           else
@@ -408,7 +409,7 @@ module ActiveRecord
             hikari_config.addDataSourceProperty 'password', ar_jdbc_config[:password]
           end
           ( ar_jdbc_config[:properties] || {} ).each do |name, val|
-            hikari_config.addDataSourceProperty name.to_s, val.to_s
+            hikari_config.addDataSourceProperty name.to_s, val.to_s unless name.eql?('useLegacyDatetimeCode')
           end
         when /postgres/i
           hikari_config.setDataSourceClassName 'org.postgresql.ds.PGSimpleDataSource'
