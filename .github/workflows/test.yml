@@ -17,8 +17,9 @@ jobs:
             MYSQL_ROOT_PASSWORD: root
             MYSQL_DATABASE: ar_bogacs
         ports:
-            - 3306
+          - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
     env:
       AR_ADAPTER: mysql2
       AR_USERNAME: root
@@ -48,6 +49,11 @@ jobs:
       fail-fast: false
 
     steps:
+      - name: check mysql from host
+        run: |
+          sudo apt install -y mysql-client
+          mysql --host 127.0.0.1 --port 3306 -uroot -proot -e "SHOW DATABASES"
+
       - name: checkout
         uses: actions/checkout@v2
 
