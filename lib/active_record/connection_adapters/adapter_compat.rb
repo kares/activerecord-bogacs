@@ -125,16 +125,16 @@ module ActiveRecord
         end
       end
 
-      unless method_defined? :seconds_idle # >= 5.2
+      def discard!
+        # no-op
+      end unless method_defined? :discard! # >= 5.2
 
-        # Seconds since this connection was returned to the pool
-        def seconds_idle # :nodoc:
-          return 0 if in_use?
-          time = ::Concurrent.monotonic_time
-          time - ( @idle_since || time )
-        end
-
-      end
+      # Seconds since this connection was returned to the pool
+      def seconds_idle # :nodoc:
+        return 0 if in_use?
+        time = ::Concurrent.monotonic_time
+        time - ( @idle_since || time )
+      end unless method_defined? :seconds_idle # >= 5.2
 
     end
   end

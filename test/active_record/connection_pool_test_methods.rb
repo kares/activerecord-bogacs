@@ -10,7 +10,7 @@ module ActiveRecord
       end
 
       def teardown
-        pool.disconnect! if pool
+        pool.discard! if pool
       end
 
       def test_checkout_after_close
