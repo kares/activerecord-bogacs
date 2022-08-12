@@ -158,8 +158,11 @@ module ActiveRecord
       module_function
 
       def current_connection_config
+        connected = ActiveRecord::Base.connection_pool.connected?
         if ActiveRecord::Base.connection.respond_to?(:config)
-          ActiveRecord::Base.connection.config # always an updated config, e.g. after mysql2_connection(config)
+          ActiveRecord::Base.connection.config.tap do # always an updated config, e.g. after mysql2_connection(config)
+            ActiveRecord::Base.connection_pool.disconnect! unless connected # restore pool state to avoid test surprises
+          end
         elsif ActiveRecord::Base.respond_to?(:connection_config)
           ActiveRecord::Base.connection_config
         else
