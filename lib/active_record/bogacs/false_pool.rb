@@ -234,15 +234,11 @@ module ActiveRecord
       end
 
       def checkout_new_connection
-        # NOTE: automatic reconnect seems to make no sense for us!
-        #raise ConnectionNotEstablished unless @automatic_reconnect
-
+        # NOTE: automatic reconnect makes no sense for us!
         begin
           conn = new_connection
-        rescue ConnectionTimeoutError => e
-          raise e
         rescue => e
-          raise ConnectionTimeoutError, e.message if timeout_error?(e)
+          raise ConnectionTimeoutError, e.message if timeout_error?(e) && !e.is_a?(ConnectionTimeoutError)
           raise e
         end
         @connected.make_true
