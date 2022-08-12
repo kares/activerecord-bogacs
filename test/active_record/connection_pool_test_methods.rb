@@ -135,8 +135,6 @@ module ActiveRecord
 
         # TODO this does not pass on built-in pool (MRI assumption) :
         #assert_equal 1, active_connections.size
-      ensure
-        pool.connections.each(&:close)
       end
 
       def test_remove_connection
@@ -175,7 +173,6 @@ module ActiveRecord
           threads << Thread.new(i) do
             connection = pool.connection
             assert_not_nil connection
-            connection.close
           end
         end
 
@@ -183,7 +180,7 @@ module ActiveRecord
 
         Thread.new do
           assert pool.connection
-          pool.connection.close
+          pool.connection.tables
         end.join
       end
 
