@@ -129,12 +129,13 @@ module ActiveRecord
 
         # @override
         def test_full_pool_exception
+          ActiveRecord::Base.connection_pool.disconnect! # start clean - with no connections
           # ~ pool_size.times { pool.checkout }
           threads_ready = Queue.new; threads_block = Atomic.new(0); threads = []
           max_pool_size.times do |i|
             threads << Thread.new do
               begin
-                conn = ActiveRecord::Base.connection
+                conn = ActiveRecord::Base.connection.tap { |conn| conn.tables }
                 threads_block.update { |v| v + 1 }
                 threads_ready << i
                 while threads_block.value != -1 # await
@@ -149,8 +150,26 @@ module ActiveRecord
           end
           max_pool_size.times { threads_ready.pop } # awaits
 
-          assert_raise(ConnectionTimeoutError) do
-            ActiveRecord::Base.connection # ~ pool.checkout
+          assert_equal max_pool_size, ActiveRecord::Base.connection_pool.connections.size
+
+          threads.each { |thread| assert thread.alive? }
+
+          #puts "data_source.active: #{data_source.getActive} - #{data_source.getNumActive}"
+
+          begin
+            # NOTE: in AR 4.x and before AR::Base.connection was enough
+            # but due the lazy nature of connection init in AR-JDBC 5X we need to force a connection
+            ActiveRecord::Base.connection.tap { |conn| conn.tables } # ~ pool.checkout
+          rescue ActiveRecordError, java.util.NoSuchElementException => e
+            # DBCP: Java::JavaUtil::NoSuchElementException: Timeout waiting for idle object
+            if ActiveRecord::VERSION::STRING < '5.2'
+              assert_instance_of ConnectionTimeoutError, e
+            else
+              # TODO unfortunately we can not map a TimeoutError and will end up with a StatementInvalid
+              # from the tables call :
+              # assert_instance_of ConnectionTimeoutError, e
+              assert ActiveRecord::Base.connection_pool.send(:timeout_error?, e)
+            end
           end
 
         ensure
