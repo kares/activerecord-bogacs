@@ -70,7 +70,7 @@ module ActiveRecord
         end
 
         def self.shutdown
-          ActiveRecord::Base.connection_pool.disconnect!
+            ActiveRecord::Base.connection_pool.discard!
           ConnectionAdapters::ConnectionHandler.connection_pool_class = ConnectionAdapters::ConnectionPool
         end
 
