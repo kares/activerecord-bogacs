@@ -23,7 +23,7 @@ module ActiveRecord
           pool = super
           spec = pool.spec
           if spec.config[:pool].eql? false
-            owner_to_pool[owner.name] = ActiveRecord::Bogacs::FalsePool.new(spec)
+            owner_to_pool[spec.name] = ActiveRecord::Bogacs::FalsePool.new(spec)
           else
             pool
           end
