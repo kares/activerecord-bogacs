@@ -4,14 +4,13 @@ require 'concurrent/thread_safe/util/cheap_lockable.rb'
 module ActiveRecord::Bogacs
   module ThreadSafe
     if defined? JRUBY_VERSION
-      require 'jruby'
-
       module Synchronized
         if defined? ::JRuby::Util.synchronized # since JRuby 9.3
           def synchronize
             ::JRuby::Util.synchronized(self) { yield }
           end
         else
+          require 'jruby'
           def synchronize
             ::JRuby.reference0(self).synchronized { yield }
           end
