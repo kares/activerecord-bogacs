@@ -105,7 +105,7 @@ module ActiveRecord
 
       def discard! # :nodoc:
         synchronize do
-          return if @thread_cached_conns.nil? # already discarded
+          return if discarded?
           @connected.make_false
 
           connections.each do |conn|
@@ -113,6 +113,10 @@ module ActiveRecord
           end
           @thread_cached_conns = nil
         end
+      end
+
+      def discarded? # :nodoc:
+        @thread_cached_conns.nil?
       end
 
       # Clears the cache which maps classes.

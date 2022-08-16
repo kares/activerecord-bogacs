@@ -333,7 +333,7 @@ module ActiveRecord
       # See AbstractAdapter#discard!
       def discard! # :nodoc:
         synchronize do
-          return if @connections.nil? # already discarded
+          return if discarded?
           @connected.make_false
 
           @connections.each do |conn|
@@ -342,6 +342,11 @@ module ActiveRecord
           @connections = @available = @thread_cached_conns = nil
         end
       end
+
+      def discarded? # :nodoc:
+        @connections.nil?
+      end
+
       def clear_reloadable_connections!
         synchronize do
           @thread_cached_conns.clear
