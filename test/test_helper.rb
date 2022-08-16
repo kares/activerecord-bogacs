@@ -55,7 +55,7 @@ config[:'prepared_statements'] = prepared_statements if prepared_statements
 #jdbc_properties = { 'logUnclosedConnections' => true, 'loginTimeout' => 5 }
 #config[:'properties'] = jdbc_properties
 config[:'properties'] ||= {}
-config[:'properties']['useSSL'] ||= 'false' if config[:adapter].starts_with?('mysql')
+config[:'properties']['useSSL'] ||= 'false' if config[:adapter].start_with?('mysql')
 
 checkout_timeout = ENV['AR_POOL_CHECKOUT_TIMEOUT'] || checkout_timeout
 config[:'checkout_timeout'] = checkout_timeout.to_f if checkout_timeout
