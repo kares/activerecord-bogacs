@@ -243,7 +243,7 @@ module ActiveRecord
                 sleep(0.005)
 
                 with_shared_connection do |conn2|
-                  assert conn1 == conn2
+                  assert conn1.equal?(conn2)
 
                   # we can not do any-more here without a timeout :
                   failed = nil

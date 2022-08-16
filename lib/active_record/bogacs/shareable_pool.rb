@@ -104,7 +104,7 @@ module ActiveRecord
         end
 
         @shared_connections.delete(connection)
-        checkin connection # synchronized
+        shared_checkin connection # synchronized
       end
 
       def with_shared_connection
@@ -126,6 +126,7 @@ module ActiveRecord
             emulated_checkout(connection); shared = true
             DEBUG && debug("with_shared_conn 20 got shared = #{connection.to_s}")
           else
+            shared = true
             synchronize do
               # check shared again as/if threads end up sync-ing up here :
               if connection = get_shared_connection
@@ -139,7 +140,6 @@ module ActiveRecord
                 DEBUG && debug("with_shared_conn 30 acq shared = #{connection.to_s}")
               end
             end
-            shared = true
           end
 
           Thread.current[shared_conn_key] = connection if shared
@@ -147,8 +147,8 @@ module ActiveRecord
           DEBUG && debug("with_shared_conn obtaining a connection took #{(Time.now - start) * 1000}ms")
           yield connection
         ensure
-          Thread.current[shared_conn_key] = nil # if shared
-          rem_shared_connection(connection) if shared
+          Thread.current[shared_conn_key] = nil if shared
+          rem_shared_connection(connection) if shared && connection
         end
       end
 
@@ -240,6 +240,16 @@ module ActiveRecord
         connection.lease unless connection.in_use? # connection.verify! auto-reconnect should do this
       end
 
+      def shared_checkin(conn)
+        #conn.lock.synchronize do
+        synchronize do
+          _run_checkin_callbacks(conn) if conn.owner.equal? Thread.current
+
+          @available.add conn
+        end
+        #end
+      end
+
       def shared_connection_key
         @shared_connection_key ||= :"shared_pool_connection##{object_id}"
       end
@@ -254,7 +264,7 @@ module ActiveRecord
           when 'true' then ActiveRecord::Base.logger
           else File.expand_path(debug)
           end
-          require 'logger'; Logger.new log_dev
+          log_dev.respond_to?(:debug) ? log_dev : (require 'logger'; Logger.new log_dev)
         else nil
         end
       end
