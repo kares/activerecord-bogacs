@@ -14,10 +14,9 @@ require 'active_record/bogacs/pool_support'
 #
 module ActiveRecord
   module Bogacs
-    class ShareablePool < ConnectionAdapters::ConnectionPool # NOTE: maybe do not override?!
-      include PoolSupport
+    class ShareablePool < DefaultPool
 
-      include ThreadSafe::Synchronized
+      include ::Concurrent::ThreadSafe::Util::CheapLockable
 
       AtomicReference = ::Concurrent::AtomicReference
 
@@ -28,38 +27,35 @@ module ActiveRecord
 
       # @override
       def initialize(spec)
-        super(spec) # ConnectionPool#initialize
+        super(spec)
         shared_size = spec.config[:shared_pool]
         shared_size = shared_size ? shared_size.to_f : DEFAULT_SHARED_POOL
         # size 0.0 - 1.0 assumes percentage of the pool size
         shared_size = ( @size * shared_size ).round if shared_size <= 1.0
         @shared_size = shared_size.to_i
-        @shared_connections = ThreadSafe::Map.new # :initial_capacity => @shared_size, :concurrency_level => 20
+        @shared_connections = ThreadSafe::Map.new # initial_capacity: @shared_size
       end
 
       # @override
       def connection
-        Thread.current[shared_connection_key] || begin # super - simplified :
-          super # @reserved_connections.compute_if_absent(current_connection_id) { checkout }
-        end
+        current_thread[shared_connection_key] || super
       end
 
       # @override
       def active_connection?
-        if shared_conn = Thread.current[shared_connection_key]
-          return shared_conn.in_use?
-        end
-        super_active_connection? current_connection_id
+        return true if current_thread[shared_connection_key]
+        has_active_connection? # super
       end
 
       # @override called from ConnectionManagement middle-ware (when finished)
-      def release_connection(with_id = current_connection_id)
-        if reserved_conn = @reserved_connections[with_id]
+      def release_connection(owner_thread = Thread.current)
+        conn_id = connection_cache_key(owner_thread)
+        if reserved_conn = @thread_cached_conns.delete(conn_id)
           if shared_count = @shared_connections[reserved_conn]
-            synchronize do # lock due #get_shared_connection ... not needed ?!
+            cheap_synchronize do # lock due #get_shared_connection ... not needed ?!
               # NOTE: the other option is to not care about shared here at all ...
               if shared_count.get == 0 # releasing a shared connection
-                release_shared_connection(reserved_conn)
+                release_shared_connection(reserved_conn, owner_thread)
               #else return false
               end
             end
@@ -101,14 +97,14 @@ module ActiveRecord
 
       # Custom API :
 
-      def release_shared_connection(connection)
+      def release_shared_connection(connection, owner_thread = Thread.current)
         shared_conn_key = shared_connection_key
-        if connection == Thread.current[shared_conn_key]
-          Thread.current[shared_conn_key] = nil
+        if connection == owner_thread[shared_conn_key]
+          owner_thread[shared_conn_key] = nil
         end
 
         @shared_connections.delete(connection)
-        checkin connection
+        checkin connection # synchronized
       end
 
       def with_shared_connection
@@ -121,9 +117,8 @@ module ActiveRecord
 
         start = Time.now if DEBUG
         begin
-          connection_id = current_connection_id
           # if there's a 'regular' connection on the thread use it as super
-          if super_active_connection?(connection_id) # for current thread
+          if has_active_connection? # for current thread
             connection = self.connection # do not mark as shared
             DEBUG && debug("with_shared_conn 10 got active = #{connection.to_s}")
           # otherwise if we have a shared connection - use that one :
@@ -159,15 +154,9 @@ module ActiveRecord
 
       private
 
-      def super_active_connection?(connection_id = current_connection_id)
-        (@reserved_connections.get(connection_id) || ( return false )).in_use?
+      def has_active_connection? # super.active_connection?
+        @thread_cached_conns.fetch(connection_cache_key(current_thread), nil)
       end
-
-      def super_active_connection?(connection_id = current_connection_id)
-        synchronize do
-          (@reserved_connections[connection_id] || ( return false )).in_use?
-        end
-      end if ActiveRecord::VERSION::MAJOR < 4
 
       def acquire_connection_no_wait?
         synchronize do
@@ -214,7 +203,7 @@ module ActiveRecord
         end
 
         # we did as much as could without a lock - now sync due possible release
-        synchronize do # TODO although this likely might be avoided ...
+        cheap_synchronize do # TODO although this likely might be avoided ...
           # should try again if possibly the same connection got released :
           unless least_count = @shared_connections[least_shared]
             DEBUG && debug(" get_shared_conn retry (connection got released)")
@@ -234,7 +223,7 @@ module ActiveRecord
       def rem_shared_connection(connection)
         if shared_count = @shared_connections[connection]
            # shared_count.update { |v| v - 1 } # NOTE: likely fine without lock!
-           synchronize do # give it back to the pool
+           cheap_synchronize do # give it back to the pool
              shared_count.update { |v| v - 1 } # might give it back if :
              release_shared_connection(connection) if shared_count.get == 0
            end
@@ -243,12 +232,12 @@ module ActiveRecord
 
       def emulated_checkin(connection)
         # NOTE: not sure we'd like to run `run_callbacks :checkin {}` here ...
-        connection.expire
+        connection.expire if connection.owner.equal? Thread.current
       end
 
       def emulated_checkout(connection)
         # NOTE: not sure we'd like to run `run_callbacks :checkout {}` here ...
-        connection.lease; # connection.verify! auto-reconnect should do this
+        connection.lease unless connection.in_use? # connection.verify! auto-reconnect should do this
       end
 
       def shared_connection_key

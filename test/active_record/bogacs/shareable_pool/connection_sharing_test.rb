@@ -4,8 +4,7 @@ module ActiveRecord
   module Bogacs
     class ShareablePool
 
-      # TODO: ShareablePool is pretty much broken since 0.7 :
-      class ConnectionSharingTest #< TestBase
+      class ConnectionSharingTest < TestBase
         include TestHelper
 
         def setup

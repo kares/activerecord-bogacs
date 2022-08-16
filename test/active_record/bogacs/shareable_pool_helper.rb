@@ -24,7 +24,7 @@ module ActiveRecord
         alias_method :connections, :initialized_connections
 
         def reserved_connections
-          ActiveRecord::Base.connection_pool.reserved_connections
+          connection_pool.instance_variable_get :@thread_cached_conns
         end
 
         def available_connections
@@ -70,7 +70,7 @@ module ActiveRecord
         end
 
         def self.shutdown
-            ActiveRecord::Base.connection_pool.discard!
+          ActiveRecord::Base.connection_pool.disconnect!
           ConnectionAdapters::ConnectionHandler.connection_pool_class = ConnectionAdapters::ConnectionPool
         end
 

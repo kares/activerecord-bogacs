@@ -4,8 +4,7 @@ module ActiveRecord
   module Bogacs
     class ShareablePool
 
-      # TODO: ShareablePool is pretty much broken since 0.7 :
-      class ConnectionPoolTest #< TestBase
+      class ConnectionPoolTest < TestBase
 
         include ConnectionAdapters::ConnectionPoolTestMethods
 
@@ -25,8 +24,7 @@ module ActiveRecord
 
       end
 
-      # TODO: ShareablePool is pretty much broken since 0.7 :
-      class PoolAPITest #< TestBase
+      class PoolAPITest < TestBase
 
         def setup; ActiveRecord::Base.connection end
         # def teardown; ActiveRecord::Base.connection_pool.reap end
