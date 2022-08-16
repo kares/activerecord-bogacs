@@ -37,19 +37,24 @@ module ActiveRecord
       # @private
       def checkout_timeout; end
 
+      # @override
+      # def connection_cache_key(owner_thread = Thread.current)
+      #   owner_thread
+      # end
+
       # Retrieve the connection associated with the current thread, or call
       # #checkout to obtain one if necessary.
       #
       # #connection can be called any number of times; the connection is
       # held in a hash keyed by the thread id.
       def connection
-        connection_id = current_connection_id(current_thread)
+        connection_id = connection_cache_key(current_thread)
         @thread_cached_conns[connection_id] ||= checkout
       end
 
       # Is there an open connection that is being used for the current thread?
       def active_connection?
-        connection_id = current_connection_id(current_thread)
+        connection_id = connection_cache_key(current_thread)
         @thread_cached_conns[connection_id]
       end
 
@@ -57,7 +62,7 @@ module ActiveRecord
       # #release_connection releases the connection-thread association
       # and returns the connection to the pool.
       def release_connection(owner_thread = Thread.current)
-        conn = @thread_cached_conns.delete(current_connection_id(owner_thread))
+        conn = @thread_cached_conns.delete(connection_cache_key(owner_thread))
         checkin conn if conn
       end
 
@@ -65,7 +70,7 @@ module ActiveRecord
       # exists checkout a connection, yield it to the block, and checkin the
       # connection when finished.
       def with_connection
-        connection_id = current_connection_id
+        connection_id = connection_cache_key
         unless conn = @thread_cached_conns[connection_id]
           conn = connection
           fresh_connection = true
@@ -142,7 +147,7 @@ module ActiveRecord
       # are no longer alive.
       # @private AR 3.2 compatibility
       def clear_stale_cached_connections!
-        keys = Thread.list.find_all { |t| t.alive? }.map { |t| current_connection_id(t) }
+        keys = Thread.list.find_all { |t| t.alive? }.map { |t| connection_cache_key(t) }
         keys = @thread_cached_conns.keys - keys
         keys.each do |key|
           if conn = @thread_cached_conns[key]
@@ -220,10 +225,10 @@ module ActiveRecord
       end
 
       def release(conn, owner = conn.owner)
-        thread_id = current_connection_id(owner) unless owner.nil?
+        thread_id = connection_cache_key(owner) unless owner.nil?
 
         thread_id ||=
-          if @thread_cached_conns[conn_id = current_connection_id].equal?(conn)
+          if @thread_cached_conns[conn_id = connection_cache_key].equal?(conn)
             conn_id
           else
             connections = @thread_cached_conns

@@ -24,11 +24,11 @@ module ActiveRecord
         conn
       end
 
-      # @private
-      def current_connection_id(owner_thread = Thread.current)
+      # @override (previously named current_connection_id)
+      # @private connection_cache_key for AR (5.2) compatibility
+      def connection_cache_key(owner_thread = Thread.current)
         owner_thread.object_id
       end
-      alias_method :connection_cache_key, :current_connection_id # for AR (5.2) compatibility
 
       # @note Method not part of the pre 4.0 API (does no exist).
       def remove(conn)

@@ -248,7 +248,7 @@ module ActiveRecord
       #
       # @return [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def connection
-        connection_id = current_connection_id(current_thread)
+        connection_id = connection_cache_key(current_thread)
         conn = @thread_cached_conns.fetch(connection_id, nil)
         conn = ( @thread_cached_conns[connection_id] ||= checkout ) unless conn
         conn
@@ -258,7 +258,7 @@ module ActiveRecord
       #
       # @return [true, false]
       def active_connection?
-        connection_id = current_connection_id(current_thread)
+        connection_id = connection_cache_key(current_thread)
         @thread_cached_conns.fetch(connection_id, nil)
       end
 
@@ -266,7 +266,7 @@ module ActiveRecord
       # #release_connection releases the connection-thread association
       # and returns the connection to the pool.
       def release_connection(owner_thread = Thread.current)
-        conn = @thread_cached_conns.delete(current_connection_id(owner_thread))
+        conn = @thread_cached_conns.delete(connection_cache_key(owner_thread))
         checkin conn if conn
       end
 
@@ -276,7 +276,7 @@ module ActiveRecord
       #
       # @yield [ActiveRecord::ConnectionAdapters::AbstractAdapter]
       def with_connection
-        connection_id = current_connection_id
+        connection_id = connection_cache_key
         unless conn = @thread_cached_conns[connection_id]
           conn = connection
           fresh_connection = true
@@ -566,7 +566,7 @@ module ActiveRecord
       #--
       # if owner_thread param is omitted, this must be called in synchronize block
       def remove_connection_from_thread_cache(conn, owner_thread = conn.owner)
-        @thread_cached_conns.delete_pair(current_connection_id(owner_thread), conn)
+        @thread_cached_conns.delete_pair(connection_cache_key(owner_thread), conn)
       end
       alias_method :release, :remove_connection_from_thread_cache
 
